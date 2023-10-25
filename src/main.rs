@@ -1,9 +1,12 @@
 mod tree_builder;
 mod tree;
 mod cursor;
+mod searcher;
+mod read_only_cursor;
 
 use std::{env, fs, io};
 use std::io::Write;
+use crate::searcher::Searcher;
 use crate::tree::{Node, Tree};
 use crate::tree_builder::{UkkonenBuilder, TreeBuilder};
 
@@ -17,9 +20,9 @@ fn main() {
     data = data.to_uppercase();
     data.push('$');
 
-    let tree = Tree::new(data, UkkonenBuilder::new());
+    let tree = Tree::new(&data, UkkonenBuilder::new());
 
-    println!("{:?}", tree);
+    let mut searcher = Searcher::new(&tree, data.as_bytes());
 
     loop {
         print!("Input your search string: ");
@@ -29,7 +32,13 @@ fn main() {
         if io::stdin().read_line(&mut word).is_err() {
             continue;
         }
-
-        println!("{}", word);
+        word = match word.strip_suffix('\n') {
+            None => word,
+            Some(stripped) => stripped.to_string()
+        }.to_uppercase();
+        let results = searcher.search_protein(word.as_bytes());
+        println!("found {} matches", results.len());
+        results.iter()
+            .for_each(|res| println!("* {}", res));
     }
 }

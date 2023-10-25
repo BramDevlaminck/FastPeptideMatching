@@ -9,7 +9,7 @@ pub struct Tree {
 }
 
 impl<'a> Tree {
-    pub fn new(data: String, builder: impl TreeBuilder) -> Self {
+    pub fn new(data: &String, builder: impl TreeBuilder) -> Self {
         builder.build(
             &data,
             Tree {
@@ -50,7 +50,7 @@ impl Node {
             suffix_index,
         }
     }
-    
+
     pub fn new_with_child_tuples<'a>(range: Range, parent: usize, children_tuples: Vec<(char, usize)>, link: Option<usize>, suffix_index: Option<usize>) -> Node {
         let mut node = Node {
             range,
@@ -63,10 +63,6 @@ impl Node {
         node
     }
 
-/*    pub fn new_boxed(range: Range, parent: i32, link: Option<i32>, suffix_index: Option<i32>) -> Box<Self> {
-        Box::new(Self::new(range, parent, link, suffix_index))
-    }*/
-
     fn char_to_child_index(character: char) -> usize {
         if character == '#' {
             26
@@ -77,14 +73,12 @@ impl Node {
         }
     }
 
-    // pub fn has_child(&self, character: char) -> bool {
-    //     self.children.get(self.char_to_child_index(character)).unwrap().is_some()
-    // }
-
     pub fn add_child(&mut self, character: char, child: usize) {
         self.children[Self::char_to_child_index(character)] = Some(child);
     }
 
+    // TODO: mogelijks rekening houden met feit dat er tekens ingeput kunnen worden die niet in de array zitten?
+    //  (bv ?*^), dit gaat er nu voor zorgen dat alles crasht als we zo'n teken mee geven
     pub fn get_child(&self, character: char) -> Option<usize> {
         self.children[Self::char_to_child_index(character)]
     }

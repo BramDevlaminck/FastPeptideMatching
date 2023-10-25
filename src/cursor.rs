@@ -44,7 +44,7 @@ impl<'a> Cursor<'a> {
             return CursorIterator::Ok
         }
 
-        return CursorIterator::AtEnd
+        CursorIterator::AtEnd
     }
 
     pub fn reset(&mut self) {

@@ -14,6 +14,7 @@ fn main() {
     let file_name = args.get(1).expect("Input file name expected");
 
     let mut data = fs::read_to_string(file_name).expect("Reading input file to build tree from went wrong");
+    data = data.to_uppercase();
     data.push('$');
 
     let tree = Tree::new(data, NaiveBuilder::new());

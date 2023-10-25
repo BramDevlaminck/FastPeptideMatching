@@ -5,18 +5,17 @@ const MAX_CHILDREN: usize = 28;
 #[derive(Debug)]
 pub struct Tree {
     pub arena: Vec<Node>,
-    pub string: String,
+    // pub string: &'a String,
 }
 
-impl Tree {
+impl<'a> Tree {
     pub fn new(data: String, builder: impl TreeBuilder) -> Self {
         builder.build(
+            &data,
             Tree {
                 arena: vec![Node::create_root()],
-                string: data,
             }
         )
-
     }
 }
 
@@ -42,16 +41,14 @@ impl Node {
     }
 
     /// Returns a tuple that contains the index of the new node in the arena and a reference to that node
-    pub fn build_in_arena<'a>(range: Range, parent: usize, children: [Option<usize>; MAX_CHILDREN], link: Option<usize>, suffix_index: Option<i32>, tree: &'a mut Tree) -> (usize, &'a Node) {
-        let node = Node {
+    pub fn build_in_arena<'a>(range: Range, parent: usize, children: [Option<usize>; MAX_CHILDREN], link: Option<usize>, suffix_index: Option<i32>) -> Node {
+        Node {
             range,
             children,
             parent: Some(parent),
             link,
             suffix_index,
-        };
-        tree.arena.push(node);
-        (tree.arena.len() - 1, tree.arena.last().unwrap())
+        }
     }
 
 /*    pub fn new_boxed(range: Range, parent: i32, link: Option<i32>, suffix_index: Option<i32>) -> Box<Self> {
@@ -64,7 +61,7 @@ impl Node {
         } else if character == '$' {
             27
         } else {
-            (character.to_digit(10).unwrap() - 'A'.to_digit(10).unwrap()).try_into().unwrap()
+            character as usize - 'A' as usize
         }
     }
 

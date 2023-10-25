@@ -5,7 +5,7 @@ mod cursor;
 use std::{env, fs, io};
 use std::io::Write;
 use crate::tree::{Node, Tree};
-use crate::tree_builder::{NaiveBuilder, TreeBuilder};
+use crate::tree_builder::{UkkonenBuilder, TreeBuilder};
 
 
 fn main() {
@@ -17,7 +17,7 @@ fn main() {
     data = data.to_uppercase();
     data.push('$');
 
-    let tree = Tree::new(data, NaiveBuilder::new());
+    let tree = Tree::new(data, UkkonenBuilder::new());
 
     println!("{:?}", tree);
 

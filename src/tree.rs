@@ -25,7 +25,7 @@ pub struct Node {
     pub children: [Option<usize>; MAX_CHILDREN],
     pub parent: Option<usize>,
     pub link: Option<usize>,
-    pub suffix_index: Option<i32>,
+    pub suffix_index: Option<usize>,
 }
 
 impl Node {
@@ -41,7 +41,7 @@ impl Node {
     }
 
     /// Returns a tuple that contains the index of the new node in the arena and a reference to that node
-    pub fn build_in_arena<'a>(range: Range, parent: usize, children: [Option<usize>; MAX_CHILDREN], link: Option<usize>, suffix_index: Option<i32>) -> Node {
+    pub fn new<'a>(range: Range, parent: usize, children: [Option<usize>; MAX_CHILDREN], link: Option<usize>, suffix_index: Option<usize>) -> Node {
         Node {
             range,
             children,
@@ -50,12 +50,24 @@ impl Node {
             suffix_index,
         }
     }
+    
+    pub fn new_with_child_tuples<'a>(range: Range, parent: usize, children_tuples: Vec<(char, usize)>, link: Option<usize>, suffix_index: Option<usize>) -> Node {
+        let mut node = Node {
+            range,
+            children: std::array::from_fn(|_| None),
+            parent: Some(parent),
+            link,
+            suffix_index,
+        };
+        children_tuples.iter().for_each(|(char, child)| node.add_child(*char, *child));
+        node
+    }
 
 /*    pub fn new_boxed(range: Range, parent: i32, link: Option<i32>, suffix_index: Option<i32>) -> Box<Self> {
         Box::new(Self::new(range, parent, link, suffix_index))
     }*/
 
-    fn char_to_child_index(&self, character: char) -> usize {
+    fn char_to_child_index(character: char) -> usize {
         if character == '#' {
             26
         } else if character == '$' {
@@ -70,11 +82,11 @@ impl Node {
     // }
 
     pub fn add_child(&mut self, character: char, child: usize) {
-        self.children[self.char_to_child_index(character)] = Some(child);
+        self.children[Self::char_to_child_index(character)] = Some(child);
     }
 
     pub fn get_child(&self, character: char) -> Option<usize> {
-        self.children[self.char_to_child_index(character)]
+        self.children[Self::char_to_child_index(character)]
     }
 
     pub fn set_new_children(&mut self, new_children: Vec<(char, usize)>) {

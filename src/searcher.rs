@@ -1,4 +1,3 @@
-use std::thread::current;
 use crate::cursor::CursorIterator;
 use crate::read_only_cursor::ReadOnlyCursor;
 use crate::tree::Tree;

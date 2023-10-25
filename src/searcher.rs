@@ -1,3 +1,4 @@
+use std::thread::current;
 use crate::cursor::CursorIterator;
 use crate::read_only_cursor::ReadOnlyCursor;
 use crate::tree::Tree;
@@ -24,18 +25,20 @@ impl<'a> Searcher<'a> {
         }
         let string_length = search_string.len();
         let mut index_in_string: usize = 0;
-        let mut ret_value = self.cursor.next(search_string[0] as char, search_string);
+        let mut ret_value = self.cursor.next(search_string[0] as char, self.original_input_string);
 
         while ret_value == CursorIterator::Ok && index_in_string + 1 < string_length {
             index_in_string += 1;
-            ret_value = self.cursor.next(search_string[index_in_string] as char, search_string);
+            ret_value = self.cursor.next(search_string[index_in_string] as char, self.original_input_string);
         }
 
+        let end_node = self.cursor.current_node_index_in_arena;
+        self.cursor.reset(); // prepare cursor for next search
         if index_in_string == string_length - 1 && ret_value == CursorIterator::Ok {
-            return (true, self.cursor.current_node_index_in_arena);
+            return (true, end_node);
         }
 
-        (false, self.cursor.current_node_index_in_arena)
+        (false, end_node)
     }
 
 
@@ -59,8 +62,6 @@ impl<'a> Searcher<'a> {
             }
         }
 
-        self.cursor.reset();
-
         let dollar_u8 = b'$';
         let hashtag_u8 = b'#';
         let mut solutions_list: Vec<String> = vec![];
@@ -78,5 +79,9 @@ impl<'a> Searcher<'a> {
             solutions_list.push(String::from_utf8_lossy(substring).into_owned())
         });
         solutions_list
+    }
+
+    pub fn search_if_match(&mut self, search_string: &[u8]) -> bool {
+        self.find_end_node(search_string).0
     }
 }

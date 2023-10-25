@@ -36,6 +36,7 @@ fn main() {
             None => word,
             Some(stripped) => stripped.to_string()
         }.to_uppercase();
+        // println!("{}", searcher.search_if_match(word.as_bytes()))
         let results = searcher.search_protein(word.as_bytes());
         println!("found {} matches", results.len());
         results.iter()

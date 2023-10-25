@@ -29,7 +29,7 @@ impl<'a> Cursor<'a> {
     pub fn next(&mut self, next_character: char, bytes_input: &[u8]) -> CursorIterator {
         let current_node = &self.tree.arena[self.current_node_index_in_arena];
         if self.index < current_node.range.length() {
-            if bytes_input[current_node.range.start] as char == next_character {
+            if bytes_input[current_node.range.start + self.index] as char == next_character {
                 self.index += 1;
                 return CursorIterator::Ok;
             }
@@ -48,6 +48,7 @@ impl<'a> Cursor<'a> {
 
     pub fn reset(&mut self) {
         self.index = 0;
+        self.current_node_index_in_arena = 0;
         // self.current_node = &mut self.tree.arena[0];
     }
 
@@ -58,7 +59,7 @@ impl<'a> Cursor<'a> {
         self.tree.arena.push(new_node);
 
         let current_node = &mut self.tree.arena[self.current_node_index_in_arena];
-        let node_to_insert_in_edge = Node::build_in_arena(Range::new(current_node.range.start + self.index, current_node.range.end), self.current_node_index_in_arena,current_node.children, None, None);
+        let node_to_insert_in_edge = Node::build_in_arena(Range::new(current_node.range.start + self.index, current_node.range.end), self.current_node_index_in_arena, current_node.children, None, None);
         current_node.set_new_children(
             vec![
                 (input_string[node_to_insert_in_edge.range.start] as char, new_node_index + 1), // index is 1 higher than the already pushed top

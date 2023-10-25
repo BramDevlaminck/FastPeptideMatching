@@ -25,6 +25,7 @@ impl TreeBuilder for NaiveBuilder {
             while ret_value == CursorIterator::Ok {
                 index_in_entry += 1;
                 if index_in_entry == end_index {
+                    ret_value = CursorIterator::AtEnd;
                     break;
                 }
                 ret_value = cursor.next(input_string[index_in_entry] as char, input_string);
@@ -33,7 +34,7 @@ impl TreeBuilder for NaiveBuilder {
             if ret_value == CursorIterator::InWord {
                 cursor.split_and_add(index_in_entry, end_index, input_string);
             } else {
-                cursor.add_leaf(end_index, index_in_entry, input_string);
+                cursor.add_leaf(index_in_entry, end_index, input_string);
             }
             cursor.reset();
         }

@@ -24,11 +24,11 @@ impl<'a> Searcher<'a> {
         }
         let string_length = search_string.len();
         let mut index_in_string: usize = 0;
-        let mut ret_value = self.cursor.next(search_string[0] as char, self.original_input_string);
+        let mut ret_value = self.cursor.next(search_string[0], self.original_input_string);
 
         while ret_value == CursorIterator::Ok && index_in_string + 1 < string_length {
             index_in_string += 1;
-            ret_value = self.cursor.next(search_string[index_in_string] as char, self.original_input_string);
+            ret_value = self.cursor.next(search_string[index_in_string], self.original_input_string);
         }
 
         let end_node = self.cursor.current_node_index_in_arena;

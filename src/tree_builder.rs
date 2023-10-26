@@ -18,9 +18,9 @@ impl TreeBuilder for NaiveBuilder {
         let mut cursor = Cursor::new(&mut tree);
         let input_string = data.as_bytes();
         let end_index = input_string.len();
-        for (i, character) in data.char_indices() {
+        for (i, character) in data.as_bytes().iter().enumerate() {
             let mut index_in_entry = i;
-            let mut ret_value = cursor.next(character, input_string);
+            let mut ret_value = cursor.next(*character, input_string);
 
             while ret_value == CursorIterator::Ok {
                 index_in_entry += 1;
@@ -28,7 +28,7 @@ impl TreeBuilder for NaiveBuilder {
                     ret_value = CursorIterator::AtEnd;
                     break;
                 }
-                ret_value = cursor.next(input_string[index_in_entry] as char, input_string);
+                ret_value = cursor.next(input_string[index_in_entry], input_string);
             }
 
             if ret_value == CursorIterator::InWord {
@@ -68,7 +68,7 @@ impl TreeBuilder for UkkonenBuilder {
                     prev_internal_node = None;
                 }
 
-                if cursor.next(input_string[j - 1] as char, input_string) == CursorIterator::Ok {
+                if cursor.next(input_string[j - 1], input_string) == CursorIterator::Ok {
                     break; // rule 3 : do nothing + show stopper
                 }
 

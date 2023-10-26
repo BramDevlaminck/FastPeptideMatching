@@ -71,7 +71,7 @@ impl Node {
         }
     }
 
-    pub fn new_with_child_tuples(range: Range, parent: NodeIndex, children_tuples: Vec<(char, NodeIndex)>, link: NodeIndex, suffix_index: usize) -> Node {
+    pub fn new_with_child_tuples(range: Range, parent: NodeIndex, children_tuples: Vec<(u8, NodeIndex)>, link: NodeIndex, suffix_index: usize) -> Node {
         let mut node = Node {
             range,
             children: [NodeIndex::NULL; MAX_CHILDREN],
@@ -83,27 +83,27 @@ impl Node {
         node
     }
 
-    fn char_to_child_index(character: char) -> usize {
-        if character == '#' {
+    fn char_to_child_index(character: u8) -> usize {
+        if character == b'#' {
             26
-        } else if character == '$' {
+        } else if character == b'$' {
             27
         } else {
-            character as usize - 'A' as usize
+            character as usize - 65 // 65 is 'A' in ascii
         }
     }
 
-    pub fn add_child(&mut self, character: char, child: NodeIndex) {
+    pub fn add_child(&mut self, character: u8, child: NodeIndex) {
         self.children[Self::char_to_child_index(character)] = child;
     }
 
     // TODO: mogelijks rekening houden met feit dat er tekens ingeput kunnen worden die niet in de array zitten?
     //  (bv ?*^), dit gaat er nu voor zorgen dat alles crasht als we zo'n teken mee geven
-    pub fn get_child(&self, character: char) -> NodeIndex {
+    pub fn get_child(&self, character: u8) -> NodeIndex {
         self.children[Self::char_to_child_index(character)]
     }
 
-    pub fn set_new_children(&mut self, new_children: Vec<(char, NodeIndex)>) {
+    pub fn set_new_children(&mut self, new_children: Vec<(u8, NodeIndex)>) {
         self.children = [NodeIndex::NULL; MAX_CHILDREN];
         new_children.iter().for_each(|(character, child)| self.add_child(*character, *child));
     }

@@ -27,10 +27,10 @@ impl<'a> Cursor<'a> {
     /// Try to progress by consuming `next_character`
     /// Returns CursorIterator::Ok if this succeeds,
     /// otherwise CursorIterator::InWord or CursorIterator::AtEnd is returned to indicate where in a node we are
-    pub fn next(&mut self, next_character: char, bytes_input: &[u8]) -> CursorIterator {
+    pub fn next(&mut self, next_character: u8, bytes_input: &[u8]) -> CursorIterator {
         let current_node = &self.tree.arena[self.current_node_index_in_arena];
         if self.index < current_node.range.length() {
-            if bytes_input[current_node.range.start + self.index] as char == next_character {
+            if bytes_input[current_node.range.start + self.index] == next_character {
                 self.index += 1;
                 return CursorIterator::Ok;
             }
@@ -56,7 +56,7 @@ impl<'a> Cursor<'a> {
     /// the split function for the naive builder
     pub fn split_and_add_naive(&mut self, index_in_entry: usize, end_index: usize, input_string: &[u8]) {
         let new_node = Node::new(Range::new(index_in_entry, end_index), self.current_node_index_in_arena, [NodeIndex::NULL; MAX_CHILDREN], NodeIndex::NULL, NodeIndex::NULL);
-        let new_node_char = input_string[new_node.range.start] as char;
+        let new_node_char = input_string[new_node.range.start];
         let new_node_index = self.tree.arena.len();
         self.tree.arena.push(new_node);
 
@@ -64,7 +64,7 @@ impl<'a> Cursor<'a> {
         let node_to_insert_in_edge = Node::new(Range::new(current_node.range.start + self.index, current_node.range.end), self.current_node_index_in_arena, current_node.children, NodeIndex::NULL, NodeIndex::NULL);
         current_node.set_new_children(
             vec![
-                (input_string[node_to_insert_in_edge.range.start] as char, new_node_index + 1), // index is 1 higher than the already pushed top
+                (input_string[node_to_insert_in_edge.range.start], new_node_index + 1), // index is 1 higher than the already pushed top
                 (new_node_char, new_node_index),
             ]
         );
@@ -79,7 +79,7 @@ impl<'a> Cursor<'a> {
         let new_node_index = self.tree.arena.len();
         self.tree.arena.push(new_node);
         let current_node = &mut self.tree.arena[self.current_node_index_in_arena];
-        current_node.add_child(input_string[index_in_entry] as char, new_node_index);
+        current_node.add_child(input_string[index_in_entry], new_node_index);
     }
 
     /// Returns true if the cursor is positioned at a node and not somewhere in an edge
@@ -103,7 +103,7 @@ impl<'a> Cursor<'a> {
             Range::new(current_node.range.start, new_internal_node_end),
             current_node.parent,
             vec![
-                (input_string[new_internal_node_end] as char, self.current_node_index_in_arena)
+                (input_string[new_internal_node_end], self.current_node_index_in_arena)
             ],
             NodeIndex::NULL,
             NodeIndex::NULL,
@@ -114,7 +114,7 @@ impl<'a> Cursor<'a> {
         current_node.parent = new_internal_node_index_in_arena;
         // update the parent now we have updated everything needed to the current node
         let parent = &mut self.tree.arena[parent_index_in_arena];
-        parent.add_child(input_string[new_internal_node.range.start] as char, new_internal_node_index_in_arena);
+        parent.add_child(input_string[new_internal_node.range.start], new_internal_node_index_in_arena);
         // actually push the new internal node and update the cursor
         self.tree.arena.push(new_internal_node);
         self.current_node_index_in_arena = new_internal_node_index_in_arena;
@@ -133,7 +133,7 @@ impl<'a> Cursor<'a> {
         );
         let new_leaf_position_in_arena = self.tree.arena.len();
         let current_node = &mut self.tree.arena[self.current_node_index_in_arena];
-        current_node.add_child(input_string[j] as char, new_leaf_position_in_arena);
+        current_node.add_child(input_string[j], new_leaf_position_in_arena);
         self.tree.arena.push(new_leaf);
     }
 
@@ -161,7 +161,7 @@ impl<'a> Cursor<'a> {
 
         while distance_left_to_walk > 0 {
             // move to child
-            self.current_node_index_in_arena = current_node.get_child(input_string[begin] as char);
+            self.current_node_index_in_arena = current_node.get_child(input_string[begin]);
             current_node = &self.tree.arena[self.current_node_index_in_arena];
 
             // walk as far as possible on current edge

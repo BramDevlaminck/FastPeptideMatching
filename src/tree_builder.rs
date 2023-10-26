@@ -1,5 +1,5 @@
 use crate::cursor::{Cursor, CursorIterator};
-use crate::tree::{Tree};
+use crate::tree::{NodeIndex, Tree};
 
 pub trait TreeBuilder {
     fn new() -> Self;
@@ -34,7 +34,7 @@ impl TreeBuilder for NaiveBuilder {
             if ret_value == CursorIterator::InWord {
                 cursor.split_and_add_naive(index_in_entry, end_index, input_string);
             } else {
-                cursor.add_leaf(index_in_entry, end_index, input_string);
+                cursor.add_leaf_naive(index_in_entry, end_index, input_string);
             }
             cursor.reset();
         }
@@ -57,7 +57,7 @@ impl TreeBuilder for UkkonenBuilder {
         let end_index = input_string.len();
         let mut num_leaves = 0;
         for j in 1..=end_index {
-            let mut prev_internal_node: Option<usize> = None;
+            let mut prev_internal_node: Option<NodeIndex> = None;
             let num_leaves_copy = num_leaves; // take copy since we cannot change the value that is used in the loop header itself
             // skip the first numLeaves leaves since this is rule 1 and can be skipped
             for i in num_leaves_copy..j {

@@ -1,8 +1,25 @@
 use crate::tree_builder::TreeBuilder;
 
-pub const NULL: usize = usize::MAX;
-
 pub const MAX_CHILDREN: usize = 28;
+
+pub trait Nullable<T> {
+
+    const NULL: T;
+
+    fn is_null(&self) -> bool;
+
+}
+
+pub type NodeIndex = usize;
+
+impl Nullable<NodeIndex> for NodeIndex {
+    const NULL: NodeIndex = usize::MAX;
+
+    fn is_null(&self) -> bool{
+        *self == NodeIndex::NULL
+    }
+}
+
 
 #[derive(Debug)]
 pub struct Tree {
@@ -10,7 +27,7 @@ pub struct Tree {
 }
 
 impl Tree {
-    pub fn new(data: &String, builder: impl TreeBuilder) -> Self {
+    pub fn new(data: &str, builder: impl TreeBuilder) -> Self {
         builder.build(
             data,
             Tree {
@@ -23,10 +40,10 @@ impl Tree {
 #[derive(Debug)]
 pub struct Node {
     pub range: Range,
-    pub children: [usize; MAX_CHILDREN],
-    pub parent: usize,
-    pub link: usize,
-    pub suffix_index: usize,
+    pub children: [NodeIndex; MAX_CHILDREN],
+    pub parent: NodeIndex,
+    pub link: NodeIndex,
+    pub suffix_index: NodeIndex,
 }
 
 impl Node {
@@ -34,15 +51,15 @@ impl Node {
     pub fn create_root() -> Self {
         Node {
             range: Range::new(0, 0),
-            children: [NULL; MAX_CHILDREN],
-            parent: NULL,
-            link: NULL,
-            suffix_index: NULL,
+            children: [NodeIndex::NULL; MAX_CHILDREN],
+            parent: NodeIndex::NULL,
+            link: NodeIndex::NULL,
+            suffix_index: NodeIndex::NULL,
         }
     }
 
     /// Returns a tuple that contains the index of the new node in the arena and a reference to that node
-    pub fn new(range: Range, parent: usize, children: [usize; MAX_CHILDREN], link: usize, suffix_index: usize) -> Node {
+    pub fn new(range: Range, parent: NodeIndex, children: [NodeIndex; MAX_CHILDREN], link: NodeIndex, suffix_index: usize) -> Node {
         Node {
             range,
             children,
@@ -52,10 +69,10 @@ impl Node {
         }
     }
 
-    pub fn new_with_child_tuples(range: Range, parent: usize, children_tuples: Vec<(char, usize)>, link: usize, suffix_index: usize) -> Node {
+    pub fn new_with_child_tuples(range: Range, parent: NodeIndex, children_tuples: Vec<(char, NodeIndex)>, link: NodeIndex, suffix_index: usize) -> Node {
         let mut node = Node {
             range,
-            children: [NULL; MAX_CHILDREN],
+            children: [NodeIndex::NULL; MAX_CHILDREN],
             parent,
             link,
             suffix_index,
@@ -74,18 +91,18 @@ impl Node {
         }
     }
 
-    pub fn add_child(&mut self, character: char, child: usize) {
+    pub fn add_child(&mut self, character: char, child: NodeIndex) {
         self.children[Self::char_to_child_index(character)] = child;
     }
 
     // TODO: mogelijks rekening houden met feit dat er tekens ingeput kunnen worden die niet in de array zitten?
     //  (bv ?*^), dit gaat er nu voor zorgen dat alles crasht als we zo'n teken mee geven
-    pub fn get_child(&self, character: char) -> usize {
+    pub fn get_child(&self, character: char) -> NodeIndex {
         self.children[Self::char_to_child_index(character)]
     }
 
-    pub fn set_new_children(&mut self, new_children: Vec<(char, usize)>) {
-        self.children = [NULL; MAX_CHILDREN];
+    pub fn set_new_children(&mut self, new_children: Vec<(char, NodeIndex)>) {
+        self.children = [NodeIndex::NULL; MAX_CHILDREN];
         new_children.iter().for_each(|(character, child)| self.add_child(*character, *child));
     }
 }

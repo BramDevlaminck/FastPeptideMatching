@@ -1,6 +1,6 @@
 use crate::cursor::CursorIterator;
 use crate::read_only_cursor::ReadOnlyCursor;
-use crate::tree::{NULL, Tree};
+use crate::tree::{Nullable, Tree};
 
 pub struct Searcher<'a> {
     cursor: ReadOnlyCursor<'a>,
@@ -70,11 +70,11 @@ impl<'a> Searcher<'a> {
         let mut stack = vec![end_node];
         while let Some(current_node_index) = stack.pop() {
             let current_node = &self.cursor.tree.arena[current_node_index];
-            if current_node.suffix_index != NULL {
+            if !current_node.suffix_index.is_null() {
                 suffix_indices_list.push(current_node.suffix_index);
             } else {
                 current_node.children.iter().for_each(|child| {
-                    if *child != NULL {
+                    if !child.is_null() {
                         stack.push(*child);
                     }
                 });

@@ -64,9 +64,10 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
     }.to_uppercase();
     if verbose {
         // initialization with default value needed
-        let mut execution_time: f64 = 0.0;
-        let mut found: bool = false;
+        let execution_time: f64;
+        let found: bool;
 
+        // CLion / RustRover complains about the destructuring into existing variables not working, but this does indeed work (since rust 1.59)
         if *search_mode == SearchMode::Match {
             (found, execution_time) = time_execution(searcher ,& |searcher| searcher.search_if_match(word.as_bytes()));
         } else {

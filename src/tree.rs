@@ -2,20 +2,23 @@ use crate::tree_builder::TreeBuilder;
 
 pub const MAX_CHILDREN: usize = 28;
 
+/// Custom trait implemented by types that have a value that represents NULL
 pub trait Nullable<T> {
-
     const NULL: T;
 
     fn is_null(&self) -> bool;
-
 }
 
+/// Type that represents the index of a node in the arena part of the tree
 pub type NodeIndex = usize;
 
 impl Nullable<NodeIndex> for NodeIndex {
+    /// Use usize::MAX as NULL value since this will in practice never be reached.
+    /// It is not possible to create 2^64-1 nodes (on a 64-bit machine). 
+    /// This would simply never fit in memory
     const NULL: NodeIndex = usize::MAX;
 
-    fn is_null(&self) -> bool{
+    fn is_null(&self) -> bool {
         *self == NodeIndex::NULL
     }
 }
@@ -32,7 +35,7 @@ impl Tree {
             data,
             Tree {
                 arena: vec![Node::create_root()],
-            }
+            },
         )
     }
 }
@@ -47,7 +50,6 @@ pub struct Node {
 }
 
 impl Node {
-
     pub fn create_root() -> Self {
         Node {
             range: Range::new(0, 0),

@@ -1,27 +1,26 @@
 use std::cmp::min;
-use crate::Node;
-use crate::tree::{MAX_CHILDREN, NodeIndex, Nullable, Range, Tree};
+
+use crate::tree::{MAX_CHILDREN, Node, NodeIndex, Nullable, Range, Tree};
 
 #[derive(Debug, PartialEq)]
 pub enum CursorIterator {
     Ok,
     AtEnd,
-    InWord
+    InWord,
 }
 
 pub struct Cursor<'a> {
     pub current_node_index_in_arena: usize,
     pub index: usize,
-    pub tree: &'a mut Tree
+    pub tree: &'a mut Tree,
 }
 
 impl<'a> Cursor<'a> {
-
     pub fn new(tree: &'a mut Tree) -> Cursor<'a> {
         Cursor {
             current_node_index_in_arena: 0,
             index: 0,
-            tree
+            tree,
         }
     }
 
@@ -35,14 +34,14 @@ impl<'a> Cursor<'a> {
                 self.index += 1;
                 return CursorIterator::Ok;
             }
-            return CursorIterator::InWord
+            return CursorIterator::InWord;
         }
 
         let child = current_node.get_child(next_character);
         if !child.is_null() {
             self.current_node_index_in_arena = child;
             self.index = 1;
-            return CursorIterator::Ok
+            return CursorIterator::Ok;
         }
 
         CursorIterator::AtEnd
@@ -66,7 +65,7 @@ impl<'a> Cursor<'a> {
         current_node.set_new_children(
             vec![
                 (input_string[node_to_insert_in_edge.range.start] as char, new_node_index + 1), // index is 1 higher than the already pushed top
-                (new_node_char, new_node_index)
+                (new_node_char, new_node_index),
             ]
         );
 
@@ -107,7 +106,7 @@ impl<'a> Cursor<'a> {
                 (input_string[new_internal_node_end] as char, self.current_node_index_in_arena)
             ],
             NodeIndex::NULL,
-            NodeIndex::NULL
+            NodeIndex::NULL,
         );
         let parent_index_in_arena = current_node.parent; // temp store the index since we will need it later
         // update current node
@@ -130,7 +129,7 @@ impl<'a> Cursor<'a> {
             self.current_node_index_in_arena,
             [NodeIndex::NULL; MAX_CHILDREN],
             NodeIndex::NULL,
-            suffix_index
+            suffix_index,
         );
         let new_leaf_position_in_arena = self.tree.arena.len();
         let current_node = &mut self.tree.arena[self.current_node_index_in_arena];
@@ -172,5 +171,4 @@ impl<'a> Cursor<'a> {
             self.index = current_advance;
         }
     }
-
 }

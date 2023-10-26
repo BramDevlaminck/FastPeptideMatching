@@ -5,7 +5,7 @@ use crate::tree::{Nullable, Tree};
 pub struct ReadOnlyCursor<'a> {
     pub current_node_index_in_arena: usize,
     pub index: usize,
-    pub tree: &'a Tree
+    pub tree: &'a Tree,
 }
 
 impl<'a> ReadOnlyCursor<'a> {
@@ -13,7 +13,7 @@ impl<'a> ReadOnlyCursor<'a> {
         Self {
             current_node_index_in_arena: 0,
             index: 0,
-            tree
+            tree,
         }
     }
 
@@ -27,14 +27,14 @@ impl<'a> ReadOnlyCursor<'a> {
                 self.index += 1;
                 return CursorIterator::Ok;
             }
-            return CursorIterator::InWord
+            return CursorIterator::InWord;
         }
 
         let child = current_node.get_child(next_character);
         if !child.is_null() {
             self.current_node_index_in_arena = child;
             self.index = 1;
-            return CursorIterator::Ok
+            return CursorIterator::Ok;
         }
 
         CursorIterator::AtEnd
@@ -44,6 +44,4 @@ impl<'a> ReadOnlyCursor<'a> {
         self.index = 0;
         self.current_node_index_in_arena = 0;
     }
-
-
 }

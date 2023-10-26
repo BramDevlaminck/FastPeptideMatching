@@ -68,7 +68,7 @@ impl TreeBuilder for UkkonenBuilder {
                     prev_internal_node = None;
                 }
 
-                if cursor.next(input_string[j-1] as char, input_string) == CursorIterator::Ok {
+                if cursor.next(input_string[j - 1] as char, input_string) == CursorIterator::Ok {
                     break; // rule 3 : do nothing + show stopper
                 }
 
@@ -80,7 +80,7 @@ impl TreeBuilder for UkkonenBuilder {
                     }
                     prev_internal_node = Some(new_internal_node_index);
                 }
-                cursor.add_leaf_from_position(j-1, i, input_string);
+                cursor.add_leaf_from_position(j - 1, i, input_string);
                 num_leaves += 1;
 
                 // follow the suffix link since the extension is complete

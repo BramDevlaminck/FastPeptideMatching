@@ -9,7 +9,7 @@ pub struct Tree {
     pub arena: Vec<Node>,
 }
 
-impl<'a> Tree {
+impl Tree {
     pub fn new(data: &String, builder: impl TreeBuilder) -> Self {
         builder.build(
             data,
@@ -42,7 +42,7 @@ impl Node {
     }
 
     /// Returns a tuple that contains the index of the new node in the arena and a reference to that node
-    pub fn new<'a>(range: Range, parent: usize, children: [usize; MAX_CHILDREN], link: usize, suffix_index: usize) -> Node {
+    pub fn new(range: Range, parent: usize, children: [usize; MAX_CHILDREN], link: usize, suffix_index: usize) -> Node {
         Node {
             range,
             children,
@@ -52,7 +52,7 @@ impl Node {
         }
     }
 
-    pub fn new_with_child_tuples<'a>(range: Range, parent: usize, children_tuples: Vec<(char, usize)>, link: usize, suffix_index: usize) -> Node {
+    pub fn new_with_child_tuples(range: Range, parent: usize, children_tuples: Vec<(char, usize)>, link: usize, suffix_index: usize) -> Node {
         let mut node = Node {
             range,
             children: [NULL; MAX_CHILDREN],

@@ -4,7 +4,7 @@ use crate::tree::{Tree};
 pub trait TreeBuilder {
     fn new() -> Self;
 
-    fn build(&self, data: &String, tree: Tree) -> Tree;
+    fn build(&self, data: &str, tree: Tree) -> Tree;
 }
 
 pub struct NaiveBuilder;
@@ -14,7 +14,7 @@ impl TreeBuilder for NaiveBuilder {
         Self
     }
 
-    fn build(&self, data: &String, mut tree: Tree) -> Tree {
+    fn build(&self, data: &str, mut tree: Tree) -> Tree {
         let mut cursor = Cursor::new(&mut tree);
         let input_string = data.as_bytes();
         let end_index = input_string.len();
@@ -51,7 +51,7 @@ impl TreeBuilder for UkkonenBuilder {
         Self
     }
 
-    fn build(&self, data: &String, mut tree: Tree) -> Tree {
+    fn build(&self, data: &str, mut tree: Tree) -> Tree {
         let mut cursor = Cursor::new(&mut tree);
         let input_string = data.as_bytes();
         let end_index = input_string.len();

@@ -11,7 +11,6 @@ pub enum CursorIterator {
 
 pub struct Cursor<'a> {
     pub current_node_index_in_arena: usize,
-    // pub current_node: &'a mut Node,
     pub index: usize,
     pub tree: &'a mut Tree
 }

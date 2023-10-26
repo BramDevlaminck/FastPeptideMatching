@@ -28,16 +28,22 @@ pub enum SearchMode {
 
 #[derive(Parser, Debug)]
 pub struct Arguments {
+    /// File with the proteins used to build the suffix tree. All the proteins are expected to be concatenated using a `#`.
     #[arg(short, long)]
     database_file: String,
+    /// A file that contains sequences that we want to search in the tree. Every line contains a new sequence.
     #[arg(short, long)]
     search_file: Option<String>,
+    /// This will only build the tree and stop after that is completed. Used during benchmarking.
     #[arg(long)]
     build_only: bool,
+    /// `match` will only look if there is match.
+    /// While `all-occurrences` will search for the match and look for all the different matches in the subtree.
     #[arg(short, long, value_enum)]
     mode: Option<SearchMode>,
-    // this will change the output to <found>;<protein length>;<search time in ms>
-    #[arg(short, long, value_enum)]
+    /// This will change the output to <found (0 or 1)>;<protein length>;<search time in ms>
+    /// for each query.
+    #[arg(short, long)]
     verbose: bool,
 }
 

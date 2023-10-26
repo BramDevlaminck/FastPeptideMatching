@@ -1,17 +1,18 @@
 use crate::tree_builder::TreeBuilder;
 
-const MAX_CHILDREN: usize = 28;
+pub const NULL: usize = usize::MAX;
+
+pub const MAX_CHILDREN: usize = 28;
 
 #[derive(Debug)]
 pub struct Tree {
     pub arena: Vec<Node>,
-    // pub string: &'a String,
 }
 
 impl<'a> Tree {
     pub fn new(data: &String, builder: impl TreeBuilder) -> Self {
         builder.build(
-            &data,
+            data,
             Tree {
                 arena: vec![Node::create_root()],
             }
@@ -22,10 +23,10 @@ impl<'a> Tree {
 #[derive(Debug)]
 pub struct Node {
     pub range: Range,
-    pub children: [Option<usize>; MAX_CHILDREN],
-    pub parent: Option<usize>,
-    pub link: Option<usize>,
-    pub suffix_index: Option<usize>,
+    pub children: [usize; MAX_CHILDREN],
+    pub parent: usize,
+    pub link: usize,
+    pub suffix_index: usize,
 }
 
 impl Node {
@@ -33,29 +34,29 @@ impl Node {
     pub fn create_root() -> Self {
         Node {
             range: Range::new(0, 0),
-            children: std::array::from_fn(|_| None),
-            parent: None,
-            link: None,
-            suffix_index: None,
+            children: [NULL; MAX_CHILDREN],
+            parent: NULL,
+            link: NULL,
+            suffix_index: NULL,
         }
     }
 
     /// Returns a tuple that contains the index of the new node in the arena and a reference to that node
-    pub fn new<'a>(range: Range, parent: usize, children: [Option<usize>; MAX_CHILDREN], link: Option<usize>, suffix_index: Option<usize>) -> Node {
+    pub fn new<'a>(range: Range, parent: usize, children: [usize; MAX_CHILDREN], link: usize, suffix_index: usize) -> Node {
         Node {
             range,
             children,
-            parent: Some(parent),
+            parent,
             link,
             suffix_index,
         }
     }
 
-    pub fn new_with_child_tuples<'a>(range: Range, parent: usize, children_tuples: Vec<(char, usize)>, link: Option<usize>, suffix_index: Option<usize>) -> Node {
+    pub fn new_with_child_tuples<'a>(range: Range, parent: usize, children_tuples: Vec<(char, usize)>, link: usize, suffix_index: usize) -> Node {
         let mut node = Node {
             range,
-            children: std::array::from_fn(|_| None),
-            parent: Some(parent),
+            children: [NULL; MAX_CHILDREN],
+            parent,
             link,
             suffix_index,
         };
@@ -74,17 +75,17 @@ impl Node {
     }
 
     pub fn add_child(&mut self, character: char, child: usize) {
-        self.children[Self::char_to_child_index(character)] = Some(child);
+        self.children[Self::char_to_child_index(character)] = child;
     }
 
     // TODO: mogelijks rekening houden met feit dat er tekens ingeput kunnen worden die niet in de array zitten?
     //  (bv ?*^), dit gaat er nu voor zorgen dat alles crasht als we zo'n teken mee geven
-    pub fn get_child(&self, character: char) -> Option<usize> {
+    pub fn get_child(&self, character: char) -> usize {
         self.children[Self::char_to_child_index(character)]
     }
 
     pub fn set_new_children(&mut self, new_children: Vec<(char, usize)>) {
-        self.children = std::array::from_fn(|_| None);
+        self.children = [NULL; MAX_CHILDREN];
         new_children.iter().for_each(|(character, child)| self.add_child(*character, *child));
     }
 }

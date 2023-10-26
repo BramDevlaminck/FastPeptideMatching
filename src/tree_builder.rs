@@ -30,7 +30,7 @@ impl TreeBuilder for NaiveBuilder {
                 }
                 ret_value = cursor.next(input_string[index_in_entry] as char, input_string);
             }
-            // let current_node = &mut tree.arena[cursor.current_node_index_in_arena];
+
             if ret_value == CursorIterator::InWord {
                 cursor.split_and_add_naive(index_in_entry, end_index, input_string);
             } else {

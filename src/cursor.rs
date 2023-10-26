@@ -1,6 +1,6 @@
 use std::cmp::min;
 use crate::Node;
-use crate::tree::{Range, Tree};
+use crate::tree::{MAX_CHILDREN, NULL, Range, Tree};
 
 #[derive(Debug, PartialEq)]
 pub enum CursorIterator {
@@ -21,7 +21,6 @@ impl<'a> Cursor<'a> {
     pub fn new(tree: &'a mut Tree) -> Cursor<'a> {
         Cursor {
             current_node_index_in_arena: 0,
-            // current_node: &mut tree.arena[0],
             index: 0,
             tree
         }
@@ -37,9 +36,9 @@ impl<'a> Cursor<'a> {
             return CursorIterator::InWord
         }
 
-        if let Some(child) = current_node.get_child(next_character) {
+        let child = current_node.get_child(next_character);
+        if child != NULL {
             self.current_node_index_in_arena = child;
-            // self.current_node = &mut self.tree.arena[self.current_node_index_in_arena];
             self.index = 1;
             return CursorIterator::Ok
         }
@@ -50,18 +49,17 @@ impl<'a> Cursor<'a> {
     pub fn reset(&mut self) {
         self.index = 0;
         self.current_node_index_in_arena = 0;
-        // self.current_node = &mut self.tree.arena[0];
     }
 
     /// the split function for the naive builder
     pub fn split_and_add_naive(&mut self, index_in_entry: usize, end_index: usize, input_string: &[u8]) {
-        let new_node = Node::new(Range::new(index_in_entry, end_index), self.current_node_index_in_arena, std::array::from_fn(|_| None), None, None);
+        let new_node = Node::new(Range::new(index_in_entry, end_index), self.current_node_index_in_arena, [NULL; MAX_CHILDREN], NULL, NULL);
         let new_node_char = input_string[new_node.range.start] as char;
         let new_node_index = self.tree.arena.len();
         self.tree.arena.push(new_node);
 
         let current_node = &mut self.tree.arena[self.current_node_index_in_arena];
-        let node_to_insert_in_edge = Node::new(Range::new(current_node.range.start + self.index, current_node.range.end), self.current_node_index_in_arena, current_node.children, None, None);
+        let node_to_insert_in_edge = Node::new(Range::new(current_node.range.start + self.index, current_node.range.end), self.current_node_index_in_arena, current_node.children, NULL, NULL);
         current_node.set_new_children(
             vec![
                 (input_string[node_to_insert_in_edge.range.start] as char, new_node_index + 1), // index is 1 higher than the already pushed top
@@ -74,7 +72,7 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn add_leaf(&mut self, index_in_entry: usize, end_index: usize, input_string: &[u8]) {
-        let new_node = Node::new(Range::new(index_in_entry, end_index), self.current_node_index_in_arena, std::array::from_fn(|_| None), None, None);
+        let new_node = Node::new(Range::new(index_in_entry, end_index), self.current_node_index_in_arena, [NULL; MAX_CHILDREN], NULL, NULL);
         let new_node_index = self.tree.arena.len();
         self.tree.arena.push(new_node);
         let current_node = &mut self.tree.arena[self.current_node_index_in_arena];
@@ -86,7 +84,7 @@ impl<'a> Cursor<'a> {
     }
 
     pub fn add_link(&mut self, receiver: usize, link_to: usize) {
-        self.tree.arena[receiver].link = Some(link_to);
+        self.tree.arena[receiver].link = link_to;
     }
 
     /// Split edge implementation for Ukkonen
@@ -98,17 +96,17 @@ impl<'a> Cursor<'a> {
         let new_internal_node_end = current_node.range.start + self.index;
         let new_internal_node = Node::new_with_child_tuples(
             Range::new(current_node.range.start, new_internal_node_end),
-            current_node.parent.unwrap(),
+            current_node.parent,
             vec![
                 (input_string[new_internal_node_end] as char, self.current_node_index_in_arena)
             ],
-            None,
-            None
+            NULL,
+            NULL
         );
-        let parent_index_in_arena = current_node.parent.unwrap(); // temp store the index since we will need it later
+        let parent_index_in_arena = current_node.parent; // temp store the index since we will need it later
         // update current node
         current_node.range.start += self.index;
-        current_node.parent = Some(new_internal_node_index_in_arena);
+        current_node.parent = new_internal_node_index_in_arena;
         // update the parent now we have updated everything needed to the current node
         let parent = &mut self.tree.arena[parent_index_in_arena];
         parent.add_child(input_string[new_internal_node.range.start] as char, new_internal_node_index_in_arena);
@@ -124,9 +122,9 @@ impl<'a> Cursor<'a> {
         let new_leaf = Node::new(
             Range::new(j, input_string.len()),
             self.current_node_index_in_arena,
-            std::array::from_fn(|_| None),
-            None,
-            Some(suffix_index)
+            [NULL; MAX_CHILDREN],
+            NULL,
+            suffix_index
         );
         let new_leaf_position_in_arena = self.tree.arena.len();
         let current_node = &mut self.tree.arena[self.current_node_index_in_arena];
@@ -143,21 +141,21 @@ impl<'a> Cursor<'a> {
         let mut begin = current_node.range.start;
 
         let mut distance_left_to_walk;
-        if current_node.parent.unwrap() == 0 {
+        if current_node.parent == 0 { // parent with index 0 is the root
             self.current_node_index_in_arena = 0;
             begin += 1;
             distance_left_to_walk = self.index - 1;
         } else {
             // follow link
             distance_left_to_walk = self.index; // distance before following link
-            self.current_node_index_in_arena = self.tree.arena[current_node.parent.unwrap()].link.unwrap();
+            self.current_node_index_in_arena = self.tree.arena[current_node.parent].link;
         }
         current_node = &self.tree.arena[self.current_node_index_in_arena];
         self.index = current_node.range.length();
 
         while distance_left_to_walk > 0 {
             // move to child
-            self.current_node_index_in_arena = current_node.get_child(input_string[begin] as char).unwrap();
+            self.current_node_index_in_arena = current_node.get_child(input_string[begin] as char);
             current_node = &self.tree.arena[self.current_node_index_in_arena];
 
             // walk as far as possible on current edge

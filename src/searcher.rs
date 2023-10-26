@@ -42,6 +42,26 @@ impl<'a> Searcher<'a> {
 
 
     pub fn search_protein(&mut self, search_string: &[u8]) -> Vec<String> {
+        let suffix_indices_list = self.find_all_suffix_indices(search_string);
+
+        let mut solutions_list: Vec<String> = vec![];
+        suffix_indices_list.iter().for_each(|index| {
+            let mut begin = *index;
+            let mut end = *index;
+            while begin > 0 && self.original_input_string[begin - 1] != b'#' {
+                begin -= 1;
+            }
+
+            while self.original_input_string[end] != b'$' && self.original_input_string[end] != b'#' {
+                end += 1;
+            }
+            let substring = &self.original_input_string[begin..end];
+            solutions_list.push(String::from_utf8_lossy(substring).into_owned())
+        });
+        solutions_list
+    }
+
+    pub fn find_all_suffix_indices(&mut self, search_string: &[u8]) -> Vec<usize> {
         let (match_found, end_node) = self.find_end_node(search_string);
         if !match_found {
             return vec![];
@@ -60,24 +80,7 @@ impl<'a> Searcher<'a> {
                 });
             }
         }
-
-        let dollar_u8 = b'$';
-        let hashtag_u8 = b'#';
-        let mut solutions_list: Vec<String> = vec![];
-        suffix_indices_list.iter().for_each(|index| {
-            let mut begin = *index;
-            let mut end = *index;
-            while begin > 0 && self.original_input_string[begin - 1] != hashtag_u8 {
-                begin -= 1;
-            }
-
-            while self.original_input_string[end] != dollar_u8 && self.original_input_string[end] != hashtag_u8 {
-                end += 1;
-            }
-            let substring = &self.original_input_string[begin..end];
-            solutions_list.push(String::from_utf8_lossy(substring).into_owned())
-        });
-        solutions_list
+        suffix_indices_list
     }
 
     pub fn search_if_match(&mut self, search_string: &[u8]) -> bool {

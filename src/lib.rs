@@ -63,7 +63,7 @@ fn time_execution(searcher: &mut Searcher, f: &dyn Fn(&mut Searcher) -> bool) ->
     let end_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-    (found, end_ms - start_ms, )
+    (found, end_ms - start_ms)
 }
 
 
@@ -94,12 +94,9 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
 
         verbose_output.push(format!("{};{};{}", found_total as u8, word.len(), avg));
     } else if *search_mode == SearchMode::Match {
-        println!("{}", searcher.search_if_match(word.as_bytes()))
+        let _results = searcher.search_if_match(word.as_bytes());
     } else {
-        let results = searcher.search_protein(word.as_bytes());
-        println!("found {} matches", results.len());
-        results.iter()
-            .for_each(|res| println!("* {}", res));
+        let _results = searcher.find_all_suffix_indices(word.as_bytes());
     }
 }
 
@@ -125,14 +122,25 @@ pub fn run(args: Arguments) {
     let mut verbose_output: Vec<String> = vec![];
     if let Some(search_file) = args.search_file {
         // File `search_file` must exist in the current path
-        if let Ok(lines) = read_lines(&search_file) {
-            for line in lines.into_iter().flatten() {
-                handle_search_word(&mut searcher, line, mode, verbose, &mut verbose_output);
+        let mut total_time = 0.0;
+        for _ in 0..3 {
+            if let Ok(lines) = read_lines(&search_file) {
+                let start_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                for line in lines.into_iter().flatten() {
+                    handle_search_word(&mut searcher, line, mode, verbose, &mut verbose_output);
+                }
+                let end_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                total_time += (end_ms - start_ms);
+            } else {
+                eprintln!("File {} could not be opened!", search_file);
+                std::process::exit(1);
             }
-        } else {
-            eprintln!("File {} could not be opened!", search_file);
-            std::process::exit(1);
         }
+        println!("{}", total_time / 3.0);
     } else {
         loop {
             print!("Input your search string: ");

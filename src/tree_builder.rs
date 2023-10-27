@@ -18,7 +18,7 @@ impl TreeBuilder for NaiveBuilder {
         let mut cursor = Cursor::new(&mut tree);
         let input_string = data.as_bytes();
         let end_index = input_string.len();
-        for (i, character) in data.as_bytes().iter().enumerate() {
+        for (i, character) in input_string.iter().enumerate() {
             let mut index_in_entry = i;
             let mut ret_value = cursor.next(*character, input_string);
 

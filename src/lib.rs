@@ -42,9 +42,9 @@ pub struct Arguments {
     #[arg(short, long, value_enum)]
     mode: Option<SearchMode>,
     /// This will change the output to <found (0 or 1)>;<protein length>;<search time in ms>
-    /// for each query.
+    /// The given num will be used to run the search x times and the average of these x runs will be given as search time
     #[arg(short, long)]
-    verbose: bool,
+    verbose: Option<u8>,
 }
 
 // The output is wrapped in a Result to allow matching on errors
@@ -68,24 +68,31 @@ fn time_execution(searcher: &mut Searcher, f: &dyn Fn(&mut Searcher) -> bool) ->
 
 
 /// Executes the kind of search indicated by the commandline arguments
-fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &SearchMode, verbose: bool, verbose_output: &mut Vec<String>) {
+fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &SearchMode, verbose: Option<u8>, verbose_output: &mut Vec<String>) {
     let word = match word.strip_suffix('\n') {
         None => word,
         Some(stripped) => String::from(stripped)
     }.to_uppercase();
-    if verbose {
-        // initialization with default value needed
-        let execution_time: f64;
-        let found: bool;
+    if let Some(num_iter) = verbose {
+        let mut found_total: bool = false;
+        let mut total_time: f64 = 0.0;
+        for _ in 0..num_iter {
+            // initialization with default value needed
+            let execution_time: f64;
+            let found: bool;
 
-        // CLion / RustRover complains about the destructuring into existing variables not working, but this does indeed work (since rust 1.59)
-        if *search_mode == SearchMode::Match {
-            (found, execution_time) = time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes()));
-        } else {
-            (found, execution_time) = time_execution(searcher, &|searcher| !searcher.find_all_suffix_indices(word.as_bytes()).is_empty());
+            // CLion / RustRover complains about the destructuring into existing variables not working, but this does indeed work (since rust 1.59)
+            if *search_mode == SearchMode::Match {
+                (found, execution_time) = time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes()));
+            } else {
+                (found, execution_time) = time_execution(searcher, &|searcher| !searcher.find_all_suffix_indices(word.as_bytes()).is_empty());
+            }
+            total_time += execution_time;
+            found_total = found;
         }
+        let avg = total_time / (num_iter as f64);
 
-        verbose_output.push(format!("{};{};{}", found as u8, word.len(), execution_time));
+        verbose_output.push(format!("{};{};{}", found_total as u8, word.len(), avg));
     } else if *search_mode == SearchMode::Match {
         println!("{}", searcher.search_if_match(word.as_bytes()))
     } else {

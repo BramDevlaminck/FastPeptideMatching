@@ -77,7 +77,6 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
         let mut found_total: bool = false;
         let mut total_time: f64 = 0.0;
         for _ in 0..num_iter {
-            // initialization with default value needed
             let execution_time: f64;
             let found: bool;
 

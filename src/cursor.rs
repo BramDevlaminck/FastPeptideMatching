@@ -9,6 +9,7 @@ pub enum CursorIterator {
     InWord,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Cursor<'a> {
     pub current_node_index_in_arena: usize,
     pub index: usize,
@@ -171,4 +172,87 @@ impl<'a> Cursor<'a> {
             self.index = current_advance;
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cursor::Cursor;
+    use crate::tree::{MAX_CHILDREN, Node, NodeIndex, Nullable, Range, Tree};
+
+    #[test]
+    fn test_split_edge() {
+        let input = "ACAB$";
+
+        let mut tree = Tree {
+            arena: vec![
+                Node::new(
+                    Range::new(0, 0),
+                    NodeIndex::NULL,
+                    [NodeIndex::NULL; MAX_CHILDREN],
+                    NodeIndex::NULL,
+                    NodeIndex::NULL,
+                ),
+                Node::new(
+                    Range::new(0, 5),
+                    0,
+                    [NodeIndex::NULL; MAX_CHILDREN],
+                    NodeIndex::NULL,
+                    NodeIndex::NULL,
+                ),
+                Node::new(
+                    Range::new(1, 5),
+                    0,
+                    [NodeIndex::NULL; MAX_CHILDREN],
+                    NodeIndex::NULL,
+                    NodeIndex::NULL,
+                ),
+            ]
+        };
+
+        tree.arena[0].add_child(b'A', 1);
+        tree.arena[0].add_child(b'C', 2);
+
+        let mut control_tree = Tree {
+            arena: vec![
+                Node::new(
+                    Range::new(0, 0),
+                    NodeIndex::NULL,
+                    [NodeIndex::NULL; MAX_CHILDREN],
+                    NodeIndex::NULL,
+                    NodeIndex::NULL,
+                ),
+                Node::new(
+                    Range::new(1, 5),
+                    3,
+                    [NodeIndex::NULL; MAX_CHILDREN],
+                    NodeIndex::NULL,
+                    NodeIndex::NULL,
+                ),
+                Node::new(
+                    Range::new(1, 5),
+                    0,
+                    [NodeIndex::NULL; MAX_CHILDREN],
+                    NodeIndex::NULL,
+                    NodeIndex::NULL,
+                ),
+                Node::new(
+                    Range::new(0, 1),
+                    0,
+                    [NodeIndex::NULL; MAX_CHILDREN],
+                    NodeIndex::NULL,
+                    NodeIndex::NULL,
+                )
+            ]
+        };
+
+        control_tree.arena[0].add_child(b'A', 3);
+        control_tree.arena[0].add_child(b'C', 2);
+        control_tree.arena[3].add_child(b'C', 1);
+
+        let mut cursor = Cursor {current_node_index_in_arena: 1, index : 1, tree: &mut tree};
+        cursor.split_edge(input.as_bytes());
+
+        assert_eq!(cursor, Cursor {current_node_index_in_arena: 3 , index: 1, tree: &mut control_tree})
+    }
+
 }

@@ -1,10 +1,11 @@
-use std::{fs, io};
 use std::fs::File;
+use std::io;
 use std::io::{BufRead, Write};
+use std::ops::Add;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use clap::{Parser, ValueEnum};
+use clap::{arg, Parser, ValueEnum};
 
 use crate::searcher::Searcher;
 use crate::tree::Tree;
@@ -98,15 +99,39 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
         let results = searcher.search_protein(word.as_bytes());
         println!("found {} matches", results.len());
         results.iter()
-            .for_each(|res| println!("* {}", res));
+            .for_each(|res| println!("* {}", res.sequence));
     }
+}
+
+pub struct Protein {
+    pub sequence: String,
+    pub id: i32
 }
 
 /// Main run function that executes all the logic with the received arguments
 pub fn run(args: Arguments) {
-    let mut data = fs::read_to_string(args.database_file).expect("Reading input file to build tree from went wrong");
-    data = data.to_uppercase();
-    data.push('$');
+    let mut proteins: Vec<Protein> = vec![];
+    if let Ok(lines) = read_lines(&args.database_file) {
+        for line in lines.into_iter().flatten() {
+            let [_, _, protein_id_str, _, _, protein_sequence]: [&str; 6] = line.splitn(6, '\t').collect::<Vec<&str>>().try_into().unwrap();
+            let protein_id_i32 = protein_id_str.parse::<i32>().expect("Could not parse id of protein to integer!");
+            proteins.push(
+                Protein {
+                        sequence: protein_sequence.to_uppercase(),
+                        id: protein_id_i32
+                }
+            )
+        }
+    } else {
+        eprintln!("Database file {} could not be opened!", args.database_file);
+        std::process::exit(1);
+    }
+    let data = proteins
+        .iter()
+        .map(|prot| prot.sequence.clone())
+        .collect::<Vec<String>>()
+        .join("#")
+        .add("$");
 
     let tree = Tree::new(&data, UkkonenBuilder::new());
 
@@ -118,13 +143,13 @@ pub fn run(args: Arguments) {
         std::process::exit(1);
     }
 
-    let mut searcher = Searcher::new(&tree, data.as_bytes());
+    let mut searcher = Searcher::new(&tree, data.as_bytes(), &proteins);
     let mode = &args.mode.unwrap();
     let verbose = args.verbose;
     let mut verbose_output: Vec<String> = vec![];
-    if let Some(search_file) = args.search_file {
+    if let Some(search_file) = &args.search_file {
         // File `search_file` must exist in the current path
-        if let Ok(lines) = read_lines(&search_file) {
+        if let Ok(lines) = read_lines(search_file) {
             for line in lines.into_iter().flatten() {
                 handle_search_word(&mut searcher, line, mode, verbose, &mut verbose_output);
             }

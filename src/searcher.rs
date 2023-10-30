@@ -1,18 +1,21 @@
 use crate::cursor::CursorIterator;
+use crate::Protein;
 use crate::read_only_cursor::ReadOnlyCursor;
 use crate::tree::{Nullable, Tree};
 
 pub struct Searcher<'a> {
     cursor: ReadOnlyCursor<'a>,
     original_input_string: &'a [u8],
+    proteins: &'a Vec<Protein>,
 }
 
 
 impl<'a> Searcher<'a> {
-    pub fn new(tree: &'a Tree, original_input_string: &'a [u8]) -> Self {
+    pub fn new(tree: &'a Tree, original_input_string: &'a [u8], proteins: &'a Vec<Protein>) -> Self {
         Self {
             cursor: ReadOnlyCursor::new(tree),
             original_input_string,
+            proteins,
         }
     }
 
@@ -41,22 +44,12 @@ impl<'a> Searcher<'a> {
     }
 
 
-    pub fn search_protein(&mut self, search_string: &[u8]) -> Vec<String> {
+    pub fn search_protein(&mut self, search_string: &[u8]) -> Vec<&Protein> {
         let suffix_indices_list = self.find_all_suffix_indices(search_string);
 
-        let mut solutions_list: Vec<String> = vec![];
+        let mut solutions_list: Vec<&Protein> = vec![];
         suffix_indices_list.iter().for_each(|index| {
-            let mut begin = *index;
-            let mut end = *index;
-            while begin > 0 && self.original_input_string[begin - 1] != b'#' {
-                begin -= 1;
-            }
-
-            while self.original_input_string[end] != b'$' && self.original_input_string[end] != b'#' {
-                end += 1;
-            }
-            let substring = &self.original_input_string[begin..end];
-            solutions_list.push(String::from_utf8_lossy(substring).into_owned())
+            solutions_list.push(&self.proteins[*index]);
         });
         solutions_list
     }

@@ -6,6 +6,8 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{arg, Parser, ValueEnum};
+use umgap::taxon::TaxonId;
+use crate::lca_calculator::calculate_lcas;
 
 use crate::searcher::Searcher;
 use crate::tree::Tree;
@@ -16,6 +18,7 @@ mod tree;
 mod cursor;
 mod read_only_cursor;
 mod searcher;
+mod lca_calculator;
 
 
 /// Enum that represents the 2 kinds of search that we support
@@ -46,6 +49,9 @@ pub struct Arguments {
     /// The given num will be used to run the search x times and the average of these x runs will be given as search time
     #[arg(short, long)]
     verbose: Option<u8>,
+    #[arg(short, long)]
+    /// The taxonomy to be used as a tsv file. This is a preprocessed version of the NCBI taxonomy.
+    taxonomy: String
 }
 
 // The output is wrapped in a Result to allow matching on errors
@@ -105,7 +111,7 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
 
 pub struct Protein {
     pub sequence: String,
-    pub id: i32
+    pub id: TaxonId
 }
 
 /// Main run function that executes all the logic with the received arguments
@@ -114,11 +120,11 @@ pub fn run(args: Arguments) {
     if let Ok(lines) = read_lines(&args.database_file) {
         for line in lines.into_iter().flatten() {
             let [_, _, protein_id_str, _, _, protein_sequence]: [&str; 6] = line.splitn(6, '\t').collect::<Vec<&str>>().try_into().unwrap();
-            let protein_id_i32 = protein_id_str.parse::<i32>().expect("Could not parse id of protein to integer!");
+            let protein_id_usize = protein_id_str.parse::<TaxonId>().expect("Could not parse id of protein to usize!");
             proteins.push(
                 Protein {
                         sequence: protein_sequence.to_uppercase(),
-                        id: protein_id_i32
+                        id: protein_id_usize
                 }
             )
         }
@@ -133,7 +139,10 @@ pub fn run(args: Arguments) {
         .join("#")
         .add("$");
 
-    let tree = Tree::new(&data, UkkonenBuilder::new());
+    // build the tree
+    let mut tree = Tree::new(&data, UkkonenBuilder::new());
+    // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
+    calculate_lcas(&mut tree, &args.taxonomy, &proteins);
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {

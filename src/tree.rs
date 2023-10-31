@@ -1,3 +1,4 @@
+use umgap::taxon::TaxonId;
 use crate::tree_builder::TreeBuilder;
 // TODO: kijk hoeveel nodes er gemaakt worden bij uit hetvoeren van de build (leaves en interne nodes, zoals in de cpp)
 pub const MAX_CHILDREN: usize = 28;
@@ -47,6 +48,7 @@ pub struct Node {
     pub parent: NodeIndex,
     pub link: NodeIndex,
     pub suffix_index: NodeIndex,
+    pub taxon_id: TaxonId
 }
 
 impl Node {
@@ -57,6 +59,7 @@ impl Node {
             parent: NodeIndex::NULL,
             link: NodeIndex::NULL,
             suffix_index: NodeIndex::NULL,
+            taxon_id: TaxonId::MAX // placeholder value until we actually calculate it
         }
     }
 
@@ -68,6 +71,7 @@ impl Node {
             parent,
             link,
             suffix_index,
+            taxon_id: TaxonId::MAX// placeholder value until we actually calculate it
         }
     }
 
@@ -78,6 +82,7 @@ impl Node {
             parent,
             link,
             suffix_index,
+            taxon_id: TaxonId::MAX// placeholder value until we actually calculate it
         };
         children_tuples.iter().for_each(|(char, child)| node.add_child(*char, *child));
         node
@@ -207,15 +212,8 @@ mod tests {
         control_tree.arena[9].link = 0;
 
         // set suffix indices
-        control_tree.arena[1].suffix_index = 0;
-        control_tree.arena[4].suffix_index = 2;
-        control_tree.arena[8].suffix_index = 4;
-        control_tree.arena[2].suffix_index = 1;
-        control_tree.arena[6].suffix_index = 3;
-        control_tree.arena[10].suffix_index = 5;
-        control_tree.arena[11].suffix_index = 6;
-        control_tree.arena[12].suffix_index = 7;
-        control_tree.arena[13].suffix_index = 8;
+        let leaves = vec![1, 4, 8, 2, 6, 10, 11, 12, 13];
+        leaves.into_iter().for_each(|i| control_tree.arena[i].suffix_index = 0);
 
         assert_eq!(tree, control_tree);
     }

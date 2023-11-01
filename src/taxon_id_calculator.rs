@@ -51,11 +51,17 @@ impl TaxonIdCalculator {
             // visit the children
             stack_calculated_children.push(vec![]);
             stack.push((node_index, true));
-            for child in tree.arena[node_index].children {
+            for i in (0..tree.arena[node_index].children.len()-1).rev() {
+                let child = tree.arena[node_index].children[i];
                 if !child.is_null() {
                     stack.push((child, false));
                 }
             }
+            // for child in tree.arena[node_index].children {
+            //     if !child.is_null() {
+            //         stack.push((child, false));
+            //     }
+            // }
         }
     }
 
@@ -215,7 +221,7 @@ mod test {
             },
         ];
 
-        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids_recursive(&mut tree, &proteins);
+        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids(&mut tree, &proteins);
 
         assert_eq!(tree.arena[0].taxon_id, 1);
         assert_eq!(tree.arena[1].taxon_id, 6);

@@ -60,7 +60,7 @@ impl TaxonIdCalculator {
     }
 
     fn snap_taxon_id(&self, id: TaxonId) -> TaxonId {
-        self.snapping[id].unwrap_or_else(|| panic!("Could not snap taxon id {id}"))
+        self.snapping[id].unwrap_or_else(|| panic!("Could not snap taxon with id {id}"))
     }
 
     fn get_aggregate(&self, ids: Vec<TaxonId>) -> TaxonId {

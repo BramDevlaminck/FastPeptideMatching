@@ -1,3 +1,4 @@
+use umgap::taxon::TaxonId;
 use crate::cursor::CursorIterator;
 use crate::Protein;
 use crate::read_only_cursor::ReadOnlyCursor;
@@ -78,5 +79,14 @@ impl<'a> Searcher<'a> {
 
     pub fn search_if_match(&mut self, search_string: &[u8]) -> bool {
         self.find_end_node(search_string).0
+    }
+
+    pub fn search_taxon_id(&mut self, search_string: &[u8]) -> Option<TaxonId> {
+        let (match_found, end_node) = self.find_end_node(search_string);
+        if match_found {
+            Some(self.cursor.tree.arena[end_node].taxon_id)
+        } else {
+            None
+        }
     }
 }

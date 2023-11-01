@@ -71,7 +71,7 @@ mod test {
     use crate::tree::{MAX_CHILDREN, Node, NodeIndex, Nullable, Range, Tree};
 
     #[test]
-    fn test_calculate_lcas() {
+    fn test_calculate_taxon_ids() {
         // the tree structure we are building in this test
         // with the expected taxon id between parentheses under the node id
         //              0

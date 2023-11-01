@@ -51,17 +51,11 @@ impl TaxonIdCalculator {
             // visit the children
             stack_calculated_children.push(vec![]);
             stack.push((node_index, true));
-            for i in (0..tree.arena[node_index].children.len()).rev() {
-                let child = tree.arena[node_index].children[i];
+            for child in tree.arena[node_index].children {
                 if !child.is_null() {
                     stack.push((child, false));
                 }
             }
-            // for child in tree.arena[node_index].children {
-            //     if !child.is_null() {
-            //         stack.push((child, false));
-            //     }
-            // }
         }
     }
 
@@ -73,7 +67,7 @@ impl TaxonIdCalculator {
         let current_node = &mut tree.arena[current_node_index];
         // we are in a leave
         if !current_node.suffix_index.is_null() {
-            current_node.taxon_id = proteins[current_node.suffix_index].id;
+            current_node.taxon_id = self.snap_taxon_id(proteins[current_node.suffix_index].id);
             return current_node.taxon_id;
         }
 

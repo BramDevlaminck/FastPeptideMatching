@@ -25,41 +25,7 @@ impl TaxonIdCalculator {
         })
     }
 
-    pub fn calculate_taxon_ids(&self, tree: &mut Tree, proteins: &[Protein]) {
-        let mut stack: Vec<(NodeIndex, bool)> = vec![(0, false)];
-        let mut stack_calculated_children: Vec<Vec<TaxonId>> = vec![vec![]];
-        while let Some((node_index, visited)) = stack.pop() {
-            // children already visited => calculate lca* for this node and "return from the recursion"
-            if visited {
-                let taxon_ids = stack_calculated_children.pop().unwrap();
-                let new_taxon_id = self.get_aggregate(taxon_ids);
-                let current_node = &mut tree.arena[node_index];
-                current_node.taxon_id = new_taxon_id;
-                stack_calculated_children.last_mut().unwrap().push(new_taxon_id);
-                continue;
-            }
-
-            // base case for leaves
-            let current_node = &mut tree.arena[node_index];
-            if !current_node.suffix_index.is_null() {
-                let taxon_id = self.snap_taxon_id(proteins[current_node.suffix_index].id); // TODO: use snap_taxon_id on leaves or not?
-                current_node.taxon_id = taxon_id;
-                stack_calculated_children.last_mut().unwrap().push(taxon_id);
-                continue;
-            }
-
-            // visit the children
-            stack_calculated_children.push(vec![]);
-            stack.push((node_index, true));
-            for child in tree.arena[node_index].children {
-                if !child.is_null() {
-                    stack.push((child, false));
-                }
-            }
-        }
-    }
-
-    pub fn calculate_taxon_ids_recursive(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
+    pub fn calculate_taxon_ids(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
         self.recursive_calculate_taxon_ids(tree, proteins, 0);
     }
 
@@ -215,7 +181,7 @@ mod test {
             },
         ];
 
-        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids_recursive(&mut tree, &proteins);
+        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids(&mut tree, &proteins);
 
         assert_eq!(tree.arena[0].taxon_id, 1);
         assert_eq!(tree.arena[1].taxon_id, 6);

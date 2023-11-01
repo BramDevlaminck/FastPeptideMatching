@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{arg, Parser, ValueEnum};
 use umgap::taxon::TaxonId;
-use crate::lca_calculator::calculate_lcas;
+use crate::taxon_id_calculator::{TaxonIdCalculator};
 
 use crate::searcher::Searcher;
 use crate::tree::Tree;
@@ -18,7 +18,7 @@ mod tree;
 mod cursor;
 mod read_only_cursor;
 mod searcher;
-mod lca_calculator;
+mod taxon_id_calculator;
 
 
 /// Enum that represents the 2 kinds of search that we support
@@ -142,7 +142,7 @@ pub fn run(args: Arguments) {
     // build the tree
     let mut tree = Tree::new(&data, UkkonenBuilder::new());
     // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
-    calculate_lcas(&mut tree, &args.taxonomy, &proteins);
+    TaxonIdCalculator::new(&args.taxonomy).calculate_taxon_ids(&mut tree, &proteins);
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {

@@ -24,7 +24,7 @@ mod taxon_id_calculator;
 /// Enum that represents the 2 kinds of search that we support
 /// - Search until match and return boolean that indicates if there is a match
 /// - Search until match, if there is a match search the whole subtree to find all matching proteins
-/// - Search until match, there we can immediately retreive the taxonId that represents all the children
+/// - Search until match, there we can immediately retrieve the taxonId that represents all the children
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum SearchMode {
     Match,

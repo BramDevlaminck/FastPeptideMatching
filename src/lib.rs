@@ -154,7 +154,6 @@ pub fn run(args: Arguments) {
     // build the tree
     let mut tree = Tree::new(&data, UkkonenBuilder::new());
     // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
-    // TaxonIdCalculator::new(&args.taxonomy).calculate_taxon_ids(&mut tree, &proteins);
     TaxonIdCalculator::new(&args.taxonomy).calculate_taxon_ids_recursive(&mut tree, &proteins);
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)

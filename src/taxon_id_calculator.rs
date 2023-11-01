@@ -42,7 +42,7 @@ impl TaxonIdCalculator {
             // base case for leaves
             let current_node = &mut tree.arena[node_index];
             if !current_node.suffix_index.is_null() {
-                let taxon_id = self.snap_taxon_id(proteins[current_node.suffix_index].id);
+                let taxon_id = self.snap_taxon_id(proteins[current_node.suffix_index].id); // TODO: use snap_taxon_id on leaves or not?
                 current_node.taxon_id = taxon_id;
                 stack_calculated_children.last_mut().unwrap().push(taxon_id);
                 continue;
@@ -67,7 +67,7 @@ impl TaxonIdCalculator {
         let current_node = &mut tree.arena[current_node_index];
         // we are in a leave
         if !current_node.suffix_index.is_null() {
-            current_node.taxon_id = self.snap_taxon_id(proteins[current_node.suffix_index].id);
+            current_node.taxon_id = self.snap_taxon_id(proteins[current_node.suffix_index].id); // TODO: use snap_taxon_id on leaves or not?
             return current_node.taxon_id;
         }
 
@@ -93,7 +93,7 @@ impl TaxonIdCalculator {
         let count = agg::count(ids.into_iter().filter(|&id| id != 0).map(|it| (it, 1.0)));
         // let counts = agg::filter(counts, args.lower_bound); TODO: used in umgap, but probably not needed here?
         let aggregate = self.aggregator.aggregate(&count).unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count));
-        self.snap_taxon_id(aggregate)
+        self.snap_taxon_id(aggregate) // TODO: use snapping or not?
     }
 }
 
@@ -215,7 +215,7 @@ mod test {
             },
         ];
 
-        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids(&mut tree, &proteins);
+        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids_recursive(&mut tree, &proteins);
 
         assert_eq!(tree.arena[0].taxon_id, 1);
         assert_eq!(tree.arena[1].taxon_id, 6);

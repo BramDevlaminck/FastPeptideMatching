@@ -59,6 +59,32 @@ impl TaxonIdCalculator {
         }
     }
 
+    pub fn calculate_taxon_ids_recursive(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
+        self.recursive_calculate_taxon_ids(tree, proteins, 0);
+    }
+
+    fn recursive_calculate_taxon_ids(&self, tree: &mut Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> TaxonId {
+        let current_node = &mut tree.arena[current_node_index];
+        // we are in a leave
+        if !current_node.suffix_index.is_null() {
+            current_node.taxon_id = proteins[current_node.suffix_index].id;
+            return current_node.taxon_id;
+        }
+
+        let mut taxon_ids = vec![];
+        for child in current_node.children {
+            if !child.is_null() {
+                taxon_ids.push(self.recursive_calculate_taxon_ids(tree, proteins, child));
+            }
+        }
+
+        let taxon_id = self.get_aggregate(taxon_ids);
+
+        let current_node = &mut tree.arena[current_node_index];
+        current_node.taxon_id = taxon_id;
+        taxon_id
+    }
+
     fn snap_taxon_id(&self, id: TaxonId) -> TaxonId {
         self.snapping[id].unwrap_or_else(|| panic!("Could not snap taxon with id {id}"))
     }
@@ -189,7 +215,7 @@ mod test {
             },
         ];
 
-        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids(&mut tree, &proteins);
+        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids_recursive(&mut tree, &proteins);
 
         assert_eq!(tree.arena[0].taxon_id, 1);
         assert_eq!(tree.arena[1].taxon_id, 6);

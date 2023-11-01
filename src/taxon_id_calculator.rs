@@ -51,7 +51,7 @@ impl TaxonIdCalculator {
             // visit the children
             stack_calculated_children.push(vec![]);
             stack.push((node_index, true));
-            for i in (0..tree.arena[node_index].children.len()-1).rev() {
+            for i in (0..tree.arena[node_index].children.len()).rev() {
                 let child = tree.arena[node_index].children[i];
                 if !child.is_null() {
                     stack.push((child, false));

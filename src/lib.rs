@@ -128,8 +128,37 @@ pub struct Protein {
 
 /// Main run function that executes all the logic with the received arguments
 pub fn run(args: Arguments) {
+    let proteins= get_proteins_from_database_file(&args.database_file);
+    // construct the sequence that will be used to build the tree
+    let data = proteins
+        .iter()
+        .map(|prot| prot.sequence.clone())
+        .collect::<Vec<String>>()
+        .join("#")
+        .add("$");
+
+    // build the tree
+    let mut tree = Tree::new(&data, UkkonenBuilder::new());
+    // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
+    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+    taxon_id_calculator.calculate_taxon_ids(&mut tree, &proteins);
+
+    // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
+    if args.build_only {
+        return;
+    } else if args.mode.is_none() {
+        eprintln!("search mode expected!");
+        std::process::exit(1);
+    }
+
+    let searcher = Searcher::new(&tree, data.as_bytes(), &proteins, &taxon_id_calculator);
+    execute_search(searcher, &args)
+}
+
+/// Parse the given database tsv file into a Vector of Proteins with the data from the tsv file
+fn get_proteins_from_database_file(database_file: &str) -> Vec<Protein> {
     let mut proteins: Vec<Protein> = vec![];
-    if let Ok(lines) = read_lines(&args.database_file) {
+    if let Ok(lines) = read_lines(database_file) {
         for line in lines.into_iter().flatten() {
             let [_, _, protein_id_str, _, _, protein_sequence]: [&str; 6] = line.splitn(6, '\t').collect::<Vec<&str>>().try_into().unwrap();
             let protein_id_usize = protein_id_str.parse::<TaxonId>().expect("Could not parse id of protein to usize!");
@@ -141,31 +170,15 @@ pub fn run(args: Arguments) {
             )
         }
     } else {
-        eprintln!("Database file {} could not be opened!", args.database_file);
+        eprintln!("Database file {} could not be opened!", database_file);
         std::process::exit(1);
     }
-    let data = proteins
-        .iter()
-        .map(|prot| prot.sequence.clone())
-        .collect::<Vec<String>>()
-        .join("#")
-        .add("$");
+    proteins
+}
 
-    // build the tree
-    let mut tree = Tree::new(&data, UkkonenBuilder::new());
-    // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
-    TaxonIdCalculator::new(&args.taxonomy).calculate_taxon_ids(&mut tree, &proteins);
-
-    // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
-    if args.build_only {
-        return;
-    } else if args.mode.is_none() {
-        eprintln!("search mode expected!");
-        std::process::exit(1);
-    }
-
-    let mut searcher = Searcher::new(&tree, data.as_bytes(), &proteins);
-    let mode = &args.mode.unwrap();
+/// Perform the search as set with the commandline arguments
+fn execute_search(mut searcher: Searcher, args: &Arguments) {
+    let mode = args.mode.as_ref().unwrap();
     let verbose = args.verbose;
     let mut verbose_output: Vec<String> = vec![];
     if let Some(search_file) = &args.search_file {

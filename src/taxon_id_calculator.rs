@@ -15,7 +15,7 @@ impl TaxonIdCalculator {
         let taxons = taxon::read_taxa_file(ncbi_taxonomy_fasta_file).unwrap();
         let taxon_tree = TaxonTree::new(&taxons);
         let by_id = TaxonList::new(taxons);
-        let snapping = taxon_tree.snapping(&by_id, false);
+        let snapping = taxon_tree.snapping(&by_id, true);
 
         let aggregator = LCACalculator::new(taxon_tree);
 
@@ -25,22 +25,29 @@ impl TaxonIdCalculator {
         })
     }
 
+    /// Fill in all the taxon ids for the complete tree
     pub fn calculate_taxon_ids(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
         self.recursive_calculate_taxon_ids(tree, proteins, 0);
     }
 
+    /// The recursive function called by `calculate_taxon_ids`
+    /// This function traverses the tree post order and fills in the taxon ids
+    ///
+    /// The filled in ids are NOT snapped,
+    /// but the aggregate of all the children is calculated using the snapped version of the taxon id of the child
     fn recursive_calculate_taxon_ids(&self, tree: &mut Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> TaxonId {
         let current_node = &mut tree.arena[current_node_index];
         // we are in a leave
         if !current_node.suffix_index.is_null() {
-            current_node.taxon_id = self.snap_taxon_id(proteins[current_node.suffix_index].id); // TODO: use snap_taxon_id on leaves or not?
+            current_node.taxon_id = proteins[current_node.suffix_index].id;
             return current_node.taxon_id;
         }
 
         let mut taxon_ids = vec![];
         for child in current_node.children {
             if !child.is_null() {
-                taxon_ids.push(self.recursive_calculate_taxon_ids(tree, proteins, child));
+                // The stored taxon ids are unsnapped, but to calculate the aggregate we want to use the snapped version of each child
+                taxon_ids.push(self.snap_taxon_id(self.recursive_calculate_taxon_ids(tree, proteins, child)));
             }
         }
 
@@ -51,15 +58,15 @@ impl TaxonIdCalculator {
         taxon_id
     }
 
-    fn snap_taxon_id(&self, id: TaxonId) -> TaxonId {
+    /// Snaps the given taxon ID using the ncbi taxonomy that was provided to the TaxonIdCalculator.
+    pub fn snap_taxon_id(&self, id: TaxonId) -> TaxonId {
         self.snapping[id].unwrap_or_else(|| panic!("Could not snap taxon with id {id}"))
     }
 
+    /// Calculates the aggregate of a vector containing TaxonIds
     fn get_aggregate(&self, ids: Vec<TaxonId>) -> TaxonId {
-        let count = agg::count(ids.into_iter().filter(|&id| id != 0).map(|it| (it, 1.0)));
-        // let counts = agg::filter(counts, args.lower_bound); TODO: used in umgap, but probably not needed here?
-        let aggregate = self.aggregator.aggregate(&count).unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count));
-        self.snap_taxon_id(aggregate) // TODO: use snapping or not?
+        let count = agg::count(ids.into_iter().filter(|&id| id != 0).map(|it| (it, 1.0))); // TODO: waarom de filter id != 0 ?
+        self.aggregator.aggregate(&count).unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count))
     }
 }
 

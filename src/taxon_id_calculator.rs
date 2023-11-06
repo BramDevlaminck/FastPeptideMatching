@@ -32,9 +32,6 @@ impl TaxonIdCalculator {
 
     /// The recursive function called by `calculate_taxon_ids`
     /// This function traverses the tree post order and fills in the taxon ids
-    ///
-    /// The filled in ids are NOT snapped,
-    /// but the aggregate of all the children is calculated using the snapped version of the taxon id of the child
     fn recursive_calculate_taxon_ids(&self, tree: &mut Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> TaxonId {
         let current_node = &mut tree.arena[current_node_index];
         // we are in a leave

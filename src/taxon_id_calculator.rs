@@ -47,7 +47,7 @@ impl TaxonIdCalculator {
         for child in current_node.children {
             if !child.is_null() {
                 // The stored taxon ids are unsnapped, but to calculate the aggregate we want to use the snapped version of each child
-                taxon_ids.push(self.snap_taxon_id(self.recursive_calculate_taxon_ids(tree, proteins, child)));
+                taxon_ids.push(self.recursive_calculate_taxon_ids(tree, proteins, child));
             }
         }
 

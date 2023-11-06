@@ -139,8 +139,6 @@ pub fn run(args: Arguments) {
 
     // build the tree
     let mut tree = Tree::new(&data, UkkonenBuilder::new());
-    let test = tree.arena.last();
-    let v = data.as_bytes()[30375740] as char;
     // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
     taxon_id_calculator.calculate_taxon_ids(&mut tree, &proteins);

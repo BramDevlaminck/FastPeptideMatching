@@ -52,6 +52,10 @@ impl TreeBuilder for UkkonenBuilder {
     }
 
     fn build(&self, data: &str, mut tree: Tree) -> Tree {
+        let mut total_number_of_nodes = 0;
+        let mut total_number_of_leaves = 0;
+
+
         let mut cursor = Cursor::new(&mut tree);
         let input_string = data.as_bytes();
         let end_index = input_string.len();
@@ -75,12 +79,15 @@ impl TreeBuilder for UkkonenBuilder {
                 // rule 2: split edge if needed and add leaf
                 if !cursor.at_node() {
                     let new_internal_node_index = cursor.split_edge(input_string);
+                    total_number_of_nodes += 1;
                     if let Some(prev_current_node_index) = prev_internal_node {
                         cursor.add_link(prev_current_node_index, new_internal_node_index);
                     }
                     prev_internal_node = Some(new_internal_node_index);
                 }
                 cursor.add_leaf_from_position(j - 1, current_protein_index, input_string);
+                total_number_of_leaves += 1;
+                total_number_of_nodes += 1;
                 num_leaves += 1;
                 if input_string[i] == b'#' {
                     current_protein_index += 1;
@@ -90,7 +97,8 @@ impl TreeBuilder for UkkonenBuilder {
                 cursor.follow_link(input_string);
             }
         }
-
+        println!("number of leaves: {}", total_number_of_leaves);
+        println!("number of nodes: {}", total_number_of_nodes);
         tree
     }
 }

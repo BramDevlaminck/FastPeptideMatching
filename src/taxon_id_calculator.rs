@@ -25,6 +25,31 @@ impl TaxonIdCalculator {
         })
     }
 
+    /// Calculates the taxon ids by only using the leaves in the tree
+    pub fn calculate_taxon_ids_leaf(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
+        self.recursive_calculate_taxon_ids(tree, proteins, 0);
+    }
+
+    /// Calculate the taxon id for current_node by only using the leaves in the tree
+    fn calculate_taxon_ids_leaf_recursive(&self, tree: &mut Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) {
+        let current_node = &mut tree.arena[current_node_index];
+        // we are in a leaf
+        if !current_node.suffix_index.is_null() {
+            current_node.taxon_id = proteins[current_node.suffix_index].id;
+            return
+        }
+
+        let taxon_id = self.get_aggregate(self.get_taxon_id_leaves_under_node(tree, proteins, current_node_index));
+
+        let current_node = &mut tree.arena[current_node_index];
+        current_node.taxon_id = taxon_id;
+
+        for child in current_node.children {
+            if !child.is_null() {
+                self.calculate_taxon_ids_leaf_recursive(tree, proteins, child);
+            }
+        }
+    }
     /// Fill in all the taxon ids for the complete tree
     pub fn calculate_taxon_ids(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
         self.recursive_calculate_taxon_ids(tree, proteins, 0);
@@ -34,7 +59,7 @@ impl TaxonIdCalculator {
     /// This function traverses the tree post order and fills in the taxon ids
     fn recursive_calculate_taxon_ids(&self, tree: &mut Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> TaxonId {
         let current_node = &mut tree.arena[current_node_index];
-        // we are in a leave
+        // we are in a leaf
         if !current_node.suffix_index.is_null() {
             current_node.taxon_id = proteins[current_node.suffix_index].id;
             return current_node.taxon_id;
@@ -55,19 +80,18 @@ impl TaxonIdCalculator {
     }
 
     /// returns the taxon ids of all the leaves that are under current_node
-    fn get_taxon_id_leaves_under_node(&self, tree: &mut Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> Vec<TaxonId>{
+    fn get_taxon_id_leaves_under_node(&self, tree: &Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> Vec<TaxonId>{
         let mut ids: Vec<TaxonId> = vec![];
         self.get_taxon_id_leaves_recursive(tree, proteins, &mut ids, current_node_index);
         ids
     }
 
     /// recursive function that adds al the taxon ids of the leaves under current_node to taxon_ids
-    fn get_taxon_id_leaves_recursive(&self, tree: &mut Tree, proteins: &Vec<Protein>, taxon_ids: &mut Vec<TaxonId>, current_node_index: NodeIndex) {
-        let current_node = &mut tree.arena[current_node_index];
-        // we are in a leave
+    fn get_taxon_id_leaves_recursive(&self, tree: &Tree, proteins: &Vec<Protein>, taxon_ids: &mut Vec<TaxonId>, current_node_index: NodeIndex) {
+        let current_node = &tree.arena[current_node_index];
+        // we are in a leaf
         if !current_node.suffix_index.is_null() {
-            current_node.taxon_id = proteins[current_node.suffix_index].id;
-            taxon_ids.push(current_node.taxon_id);
+            taxon_ids.push(proteins[current_node.suffix_index].id);
             return
         }
 

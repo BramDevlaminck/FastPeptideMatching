@@ -81,9 +81,6 @@ impl TreeBuilder for UkkonenBuilder {
                     prev_internal_node = Some(new_internal_node_index);
                 }
                 cursor.add_leaf_from_position(j - 1, current_protein_index, input_string);
-                unsafe {
-                    number_leaves += 1;
-                }
                 num_leaves += 1;
                 if input_string[i] == b'#' {
                     current_protein_index += 1;

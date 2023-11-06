@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-use crate::tree::{MAX_CHILDREN, Node, NodeIndex, Nullable, Range, Tree};
+use crate::tree::{MAX_CHILDREN, Node, NodeIndex, Nullable, number_leaves, Range, Tree};
 
 #[derive(Debug, PartialEq)]
 pub enum CursorIterator {
@@ -125,6 +125,9 @@ impl<'a> Cursor<'a> {
 
     /// Add a leaf with suffix index used in the Ukkonen implementation
     pub fn add_leaf_from_position(&mut self, j: usize, suffix_index: usize, input_string: &[u8]) {
+        unsafe {
+            number_leaves += 1;
+        }
         let new_leaf = Node::new(
             Range::new(j, input_string.len()),
             self.current_node_index_in_arena,

@@ -58,6 +58,9 @@ pub struct Node {
 
 impl Node {
     pub fn create_root() -> Self {
+        unsafe {
+            number_nodes += 1;
+        }
         Node {
             range: Range::new(0, 0),
             children: [NodeIndex::NULL; MAX_CHILDREN],

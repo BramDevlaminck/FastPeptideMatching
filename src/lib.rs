@@ -55,6 +55,9 @@ pub struct Arguments {
     #[arg(short, long)]
     /// The taxonomy to be used as a tsv file. This is a preprocessed version of the NCBI taxonomy.
     taxonomy: String,
+    #[arg(long)]
+    /// Prints all the taxon ids in the tree in pre-order traversal
+    print_tree_taxon_ids: bool
 }
 
 // The output is wrapped in a Result to allow matching on errors
@@ -142,6 +145,11 @@ pub fn run(args: Arguments) {
     // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
     taxon_id_calculator.calculate_taxon_ids(&mut tree, &proteins);
+
+    // print the taxon ids of the tree if flag set
+    if args.print_tree_taxon_ids {
+        TaxonIdCalculator::output_all_taxon_ids(&tree);
+    }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {

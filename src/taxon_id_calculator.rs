@@ -54,6 +54,50 @@ impl TaxonIdCalculator {
         taxon_id
     }
 
+    /// returns the taxon ids of all the leaves that are under current_node
+    fn get_taxon_id_leaves_under_node(&self, tree: &mut Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> Vec<TaxonId>{
+        let mut ids: Vec<TaxonId> = vec![];
+        self.get_taxon_id_leaves_recursive(tree, proteins, &mut ids, current_node_index);
+        ids
+    }
+
+    /// recursive function that adds al the taxon ids of the leaves under current_node to taxon_ids
+    fn get_taxon_id_leaves_recursive(&self, tree: &mut Tree, proteins: &Vec<Protein>, taxon_ids: &mut Vec<TaxonId>, current_node_index: NodeIndex) {
+        let current_node = &mut tree.arena[current_node_index];
+        // we are in a leave
+        if !current_node.suffix_index.is_null() {
+            current_node.taxon_id = proteins[current_node.suffix_index].id;
+            taxon_ids.push(current_node.taxon_id);
+            return
+        }
+
+        for child in current_node.children {
+            if !child.is_null() {
+                self.get_taxon_id_leaves_recursive(tree, proteins, taxon_ids, child);
+            }
+        }
+    }
+
+    /// Helper function to print out the taxon ids of the tree in pre-order traversal
+    pub fn output_all_taxon_ids(tree: &Tree) {
+        Self::output_all_taxon_ids_recursive(tree, 0)
+    }
+
+    fn output_all_taxon_ids_recursive(tree: &Tree, current_node_index: TaxonId) {
+        let current_node = &tree.arena[current_node_index];
+        println!("{}", current_node.taxon_id);
+        // we are in a leave
+        if !current_node.suffix_index.is_null() {
+            return
+        }
+
+        for child in current_node.children {
+            if !child.is_null() {
+                Self::output_all_taxon_ids_recursive(tree, child);
+            }
+        }
+    }
+
     /// Snaps the given taxon ID using the ncbi taxonomy that was provided to the TaxonIdCalculator.
     pub fn snap_taxon_id(&self, id: TaxonId) -> TaxonId {
         self.snapping[id].unwrap_or_else(|| panic!("Could not snap taxon with id {id}"))

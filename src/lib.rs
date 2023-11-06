@@ -135,7 +135,6 @@ pub fn run(args: Arguments) {
         .map(|prot| prot.sequence.clone())
         .collect::<Vec<String>>()
         .join("#")
-        .add("#")
         .add("$");
 
     // build the tree

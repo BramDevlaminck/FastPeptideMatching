@@ -46,7 +46,6 @@ impl TaxonIdCalculator {
         let mut taxon_ids = vec![];
         for child in current_node.children {
             if !child.is_null() {
-                // The stored taxon ids are unsnapped, but to calculate the aggregate we want to use the snapped version of each child
                 taxon_ids.push(self.recursive_calculate_taxon_ids(tree, proteins, child));
             }
         }

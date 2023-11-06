@@ -3,6 +3,11 @@ use crate::tree_builder::TreeBuilder;
 // TODO: kijk hoeveel nodes er gemaakt worden bij uit hetvoeren van de build (leaves en interne nodes, zoals in de cpp)
 pub const MAX_CHILDREN: usize = 28;
 
+pub static mut number_leaves: u32 = 0;
+pub static mut number_nodes: u32 = 0;
+
+
+
 /// Custom trait implemented by types that have a value that represents NULL
 pub trait Nullable<T> {
     const NULL: T;
@@ -65,6 +70,9 @@ impl Node {
 
     /// Returns a tuple that contains the index of the new node in the arena and a reference to that node
     pub fn new(range: Range, parent: NodeIndex, children: [NodeIndex; MAX_CHILDREN], link: NodeIndex, suffix_index: usize) -> Node {
+        unsafe {
+            number_nodes += 1;
+        }
         Node {
             range,
             children,
@@ -76,6 +84,9 @@ impl Node {
     }
 
     pub fn new_with_child_tuples(range: Range, parent: NodeIndex, children_tuples: Vec<(u8, NodeIndex)>, link: NodeIndex, suffix_index: usize) -> Node {
+        unsafe {
+            number_nodes += 1;
+        }
         let mut node = Node {
             range,
             children: [NodeIndex::NULL; MAX_CHILDREN],

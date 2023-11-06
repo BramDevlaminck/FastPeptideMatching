@@ -5,6 +5,10 @@ use umgap::taxon::{TaxonId, TaxonList, TaxonTree};
 use crate::Protein;
 use crate::tree::{NodeIndex, Nullable, Tree};
 
+
+static mut PRINT_INDEX: i32 = 1;
+
+
 pub struct TaxonIdCalculator {
     snapping: Vec<Option<TaxonId>>,
     aggregator: Box<dyn Aggregator>,
@@ -39,7 +43,7 @@ impl TaxonIdCalculator {
             return
         }
 
-        let taxon_id = self.get_aggregate(self.get_taxon_id_leaves_under_node(tree, proteins, current_node_index));
+        let taxon_id = self.get_aggregate(Self::get_taxon_id_leaves_under_node(tree, proteins, current_node_index));
 
         let current_node = &mut tree.arena[current_node_index];
         current_node.taxon_id = taxon_id;
@@ -80,14 +84,14 @@ impl TaxonIdCalculator {
     }
 
     /// returns the taxon ids of all the leaves that are under current_node
-    fn get_taxon_id_leaves_under_node(&self, tree: &Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> Vec<TaxonId>{
+    fn get_taxon_id_leaves_under_node(tree: &Tree, proteins: &Vec<Protein>, current_node_index: NodeIndex) -> Vec<TaxonId>{
         let mut ids: Vec<TaxonId> = vec![];
-        self.get_taxon_id_leaves_recursive(tree, proteins, &mut ids, current_node_index);
+        Self::get_taxon_id_leaves_recursive(tree, proteins, &mut ids, current_node_index);
         ids
     }
 
     /// recursive function that adds al the taxon ids of the leaves under current_node to taxon_ids
-    fn get_taxon_id_leaves_recursive(&self, tree: &Tree, proteins: &Vec<Protein>, taxon_ids: &mut Vec<TaxonId>, current_node_index: NodeIndex) {
+    fn get_taxon_id_leaves_recursive(tree: &Tree, proteins: &Vec<Protein>, taxon_ids: &mut Vec<TaxonId>, current_node_index: NodeIndex) {
         let current_node = &tree.arena[current_node_index];
         // we are in a leaf
         if !current_node.suffix_index.is_null() {
@@ -97,40 +101,52 @@ impl TaxonIdCalculator {
 
         for child in current_node.children {
             if !child.is_null() {
-                self.get_taxon_id_leaves_recursive(tree, proteins, taxon_ids, child);
+                Self::get_taxon_id_leaves_recursive(tree, proteins, taxon_ids, child);
             }
         }
     }
 
     /// Helper function to print out the taxon ids of the tree in pre-order traversal
-    pub fn output_all_taxon_ids(tree: &Tree) {
-        Self::output_all_taxon_ids_recursive(tree, 0)
+    pub fn output_all_taxon_ids(tree: &Tree, proteins: &Vec<Protein>) {
+        Self::output_all_taxon_ids_recursive(tree, 0, proteins)
     }
 
-    fn output_all_taxon_ids_recursive(tree: &Tree, current_node_index: TaxonId) {
+    fn output_all_taxon_ids_recursive(tree: &Tree, current_node_index: TaxonId, proteins: &Vec<Protein>) {
         let current_node = &tree.arena[current_node_index];
 
         // we are in a leaf
         if !current_node.suffix_index.is_null() {
             println!("{}", current_node.taxon_id);
             println!("children: /");
+            unsafe {
+                PRINT_INDEX += 1;
+            }
             return
         }
 
         for child in current_node.children {
             if !child.is_null() {
-                Self::output_all_taxon_ids_recursive(tree, child);
+                Self::output_all_taxon_ids_recursive(tree, child, proteins);
             }
         }
 
         println!("{}", current_node.taxon_id);
         print!("children: ");
+        unsafe {
+            if PRINT_INDEX == 21086 {
+                let mut taxon_ids = vec![];
+                println!("children: {:?}", Self::get_taxon_id_leaves_recursive(tree, proteins, &mut taxon_ids, current_node_index));
+            }
+        }
         for child in current_node.children {
             if !child.is_null() {
                 print!("{};", tree.arena[child].taxon_id);
             }
         }
         println!();
+        unsafe {
+            PRINT_INDEX += 1;
+        }
     }
 
     /// Snaps the given taxon ID using the ncbi taxonomy that was provided to the TaxonIdCalculator.

@@ -148,7 +148,7 @@ pub fn run(args: Arguments) {
 
     // print the taxon ids of the tree if flag set
     if args.print_tree_taxon_ids {
-        TaxonIdCalculator::output_all_taxon_ids(&tree);
+        TaxonIdCalculator::output_all_taxon_ids(&tree, &proteins);
     }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)

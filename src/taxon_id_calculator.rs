@@ -131,13 +131,14 @@ impl TaxonIdCalculator {
         }
 
         println!("{}", current_node.taxon_id);
-        print!("children: ");
         unsafe {
-            if PRINT_INDEX == 21086 {
+            if PRINT_INDEX == 21085 {
                 let mut taxon_ids = vec![];
-                println!("children: {:?}", Self::get_taxon_id_leaves_recursive(tree, proteins, &mut taxon_ids, current_node_index));
+                Self::get_taxon_id_leaves_recursive(tree, proteins, &mut taxon_ids, current_node_index);
+                println!("leaves: {:?}", taxon_ids);
             }
         }
+        print!("children: ");
         for child in current_node.children {
             if !child.is_null() {
                 print!("{};", tree.arena[child].taxon_id);

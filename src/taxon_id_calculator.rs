@@ -109,9 +109,11 @@ impl TaxonIdCalculator {
 
     fn output_all_taxon_ids_recursive(tree: &Tree, current_node_index: TaxonId) {
         let current_node = &tree.arena[current_node_index];
-        println!("{}", current_node.taxon_id);
-        // we are in a leave
+
+        // we are in a leaf
         if !current_node.suffix_index.is_null() {
+            println!("{}", current_node.taxon_id);
+            println!("children: /");
             return
         }
 
@@ -120,6 +122,15 @@ impl TaxonIdCalculator {
                 Self::output_all_taxon_ids_recursive(tree, child);
             }
         }
+
+        println!("{}", current_node.taxon_id);
+        print!("children: ");
+        for child in current_node.children {
+            if !child.is_null() {
+                print!("{};", tree.arena[current_node_index].taxon_id);
+            }
+        }
+        println!();
     }
 
     /// Snaps the given taxon ID using the ncbi taxonomy that was provided to the TaxonIdCalculator.

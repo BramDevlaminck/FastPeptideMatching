@@ -127,7 +127,7 @@ impl TaxonIdCalculator {
         print!("children: ");
         for child in current_node.children {
             if !child.is_null() {
-                print!("{};", tree.arena[current_node_index].taxon_id);
+                print!("{};", tree.arena[child].taxon_id);
             }
         }
         println!();

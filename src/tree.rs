@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use umgap::taxon::TaxonId;
 use crate::tree_builder::TreeBuilder;
 pub const MAX_CHILDREN: usize = 28;
@@ -43,7 +44,7 @@ impl Tree {
 #[derive(Debug, PartialEq)]
 pub struct Node {
     pub range: Range,
-    pub children: [NodeIndex; MAX_CHILDREN],
+    pub children: HashMap<u8, NodeIndex>,
     pub parent: NodeIndex,
     pub link: NodeIndex,
     pub suffix_index: NodeIndex,
@@ -54,7 +55,7 @@ impl Node {
     pub fn create_root() -> Self {
         Node {
             range: Range::new(0, 0),
-            children: [NodeIndex::NULL; MAX_CHILDREN],
+            children: HashMap::new(),
             parent: NodeIndex::NULL,
             link: NodeIndex::NULL,
             suffix_index: NodeIndex::NULL,
@@ -63,7 +64,7 @@ impl Node {
     }
 
     /// Returns a tuple that contains the index of the new node in the arena and a reference to that node
-    pub fn new(range: Range, parent: NodeIndex, children: [NodeIndex; MAX_CHILDREN], link: NodeIndex, suffix_index: usize) -> Node {
+    pub fn new(range: Range, parent: NodeIndex, children: HashMap<u8, usize>, link: NodeIndex, suffix_index: usize) -> Node {
         Node {
             range,
             children,
@@ -77,7 +78,7 @@ impl Node {
     pub fn new_with_child_tuples(range: Range, parent: NodeIndex, children_tuples: Vec<(u8, NodeIndex)>, link: NodeIndex, suffix_index: usize) -> Node {
         let mut node = Node {
             range,
-            children: [NodeIndex::NULL; MAX_CHILDREN],
+            children: HashMap::new(),
             parent,
             link,
             suffix_index,
@@ -98,17 +99,19 @@ impl Node {
     }
 
     pub fn add_child(&mut self, character: u8, child: NodeIndex) {
-        self.children[Self::char_to_child_index(character)] = child;
+        self.children.insert(character, child);
+        // self.children[Self::char_to_child_index(character)] = child;
     }
 
     // TODO: mogelijks rekening houden met feit dat er tekens ingeput kunnen worden die niet in de array zitten?
     //  (bv ?*^), dit gaat er nu voor zorgen dat alles crasht als we zo'n teken mee geven
     pub fn get_child(&self, character: u8) -> NodeIndex {
-        self.children[Self::char_to_child_index(character)]
+        *self.children.get(&character).unwrap()
+        // self.children[Self::char_to_child_index(character)]
     }
 
     pub fn set_new_children(&mut self, new_children: Vec<(u8, NodeIndex)>) {
-        self.children = [NodeIndex::NULL; MAX_CHILDREN];
+        self.children = HashMap::new();
         new_children.iter().for_each(|(character, child)| self.add_child(*character, *child));
     }
 }
@@ -130,6 +133,7 @@ impl Range {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use crate::tree::{MAX_CHILDREN, Node, NodeIndex, Nullable, Range, Tree};
     use crate::tree_builder::{TreeBuilder, UkkonenBuilder};
 
@@ -143,7 +147,7 @@ mod tests {
             control_tree.arena.push(Node::new(
                 Range::new(0, 0),
                 NodeIndex::NULL,
-                [NodeIndex::NULL; MAX_CHILDREN],
+                HashMap::new(),
                 NodeIndex::NULL,
                 NodeIndex::NULL
             ));

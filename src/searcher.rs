@@ -70,9 +70,9 @@ impl<'a> Searcher<'a> {
             if !current_node.suffix_index.is_null() {
                 suffix_indices_list.push(current_node.suffix_index);
             } else {
-                current_node.children.iter().for_each(|child| {
+                current_node.children.iter().for_each(|(_, &child)| {
                     if !child.is_null() {
-                        stack.push(*child);
+                        stack.push(child);
                     }
                 });
             }

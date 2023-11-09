@@ -26,25 +26,24 @@ impl<'a> Searcher<'a> {
     /// Return true as first value of the tuple if we have a valid match until the end
     /// the second value of the tuple is the index of the last current node in the arena during search
     fn find_end_node(&mut self, search_string: &[u8]) -> (bool, usize) {
-        self.cursor.find_in_tree(self.original_input_string, search_string)
-        // if search_string.is_empty() {
-        //     return (true, 0);
-        // }
-        // let string_length = search_string.len();
-        // let mut index_in_string: usize = 0;
-        //
-        // while self.cursor.next(search_string[index_in_string], self.original_input_string).is_some() {
-        //     index_in_string += 1;
-        //     if index_in_string == string_length {
-        //         self.cursor.reset(); // prepare cursor for next search
-        //         return (true, self.cursor.current_node_index_in_arena)
-        //     }
-        // }
-        //
-        // let end_node = self.cursor.current_node_index_in_arena;
-        // self.cursor.reset(); // prepare cursor for next search
-        //
-        // (false, end_node)
+        if search_string.is_empty() {
+            return (true, 0);
+        }
+        let string_length = search_string.len();
+        let mut index_in_string: usize = 0;
+
+        while self.cursor.next(search_string[index_in_string], self.original_input_string).is_some() {
+            index_in_string += 1;
+            if index_in_string == string_length {
+                self.cursor.reset(); // prepare cursor for next search
+                return (true, self.cursor.current_node_index_in_arena)
+            }
+        }
+
+        let end_node = self.cursor.current_node_index_in_arena;
+        self.cursor.reset(); // prepare cursor for next search
+
+        (false, end_node)
     }
 
 

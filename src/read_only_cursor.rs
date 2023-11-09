@@ -31,8 +31,8 @@ impl<'a> ReadOnlyCursor<'a> {
         }
 
         let child = current_node.get_child(next_character);
-        if !child.is_null() {
-            self.current_node_index_in_arena = child;
+        if let Some(&child_val) = child {
+            self.current_node_index_in_arena = child_val;
             self.index = 1;
             return CursorIterator::Ok;
         }

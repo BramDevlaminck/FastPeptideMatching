@@ -40,8 +40,8 @@ impl<'a> Cursor<'a> {
         }
 
         let child = current_node.get_child(next_character);
-        if !child.is_null() {
-            self.current_node_index_in_arena = child;
+        if let Some(&child_val) = child {
+            self.current_node_index_in_arena = child_val;
             self.index = 1;
             return CursorIterator::Ok;
         }
@@ -163,7 +163,7 @@ impl<'a> Cursor<'a> {
 
         while distance_left_to_walk > 0 {
             // move to child
-            self.current_node_index_in_arena = current_node.get_child(input_string[begin]);
+            self.current_node_index_in_arena = *current_node.get_child(input_string[begin]).unwrap();
             current_node = &self.tree.arena[self.current_node_index_in_arena];
 
             // walk as far as possible on current edge

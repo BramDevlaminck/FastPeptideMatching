@@ -105,8 +105,8 @@ impl Node {
 
     // TODO: mogelijks rekening houden met feit dat er tekens ingeput kunnen worden die niet in de array zitten?
     //  (bv ?*^), dit gaat er nu voor zorgen dat alles crasht als we zo'n teken mee geven
-    pub fn get_child(&self, character: u8) -> NodeIndex {
-        *self.children.get(&character).unwrap()
+    pub fn get_child(&self, character: u8) -> Option<&NodeIndex> {
+        self.children.get(&character)
         // self.children[Self::char_to_child_index(character)]
     }
 

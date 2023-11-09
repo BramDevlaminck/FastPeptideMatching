@@ -47,7 +47,7 @@ impl<'a> ReadOnlyCursor<'a> {
         }
 
         let search_data_len = search_data.len();
-        let mut current_node = &self.tree.arena[self.current_node_index_in_arena];
+        let mut current_node = &self.tree.arena[0];
         let mut child_to_move_to = current_node.get_child(search_data[0]); // get us started on the right path
         let mut current_index_in_search_data = 0;
         while !child_to_move_to.is_null() && current_index_in_search_data <= search_data_len {

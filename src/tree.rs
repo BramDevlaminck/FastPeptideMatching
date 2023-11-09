@@ -1,6 +1,5 @@
 use umgap::taxon::TaxonId;
 use crate::tree_builder::TreeBuilder;
-// TODO: kijk hoeveel nodes er gemaakt worden bij uit hetvoeren van de build (leaves en interne nodes, zoals in de cpp)
 pub const MAX_CHILDREN: usize = 28;
 
 /// Custom trait implemented by types that have a value that represents NULL
@@ -20,7 +19,7 @@ impl Nullable<NodeIndex> for NodeIndex {
     const NULL: NodeIndex = usize::MAX;
 
     fn is_null(&self) -> bool {
-        *self == NodeIndex::NULL
+        *self == Self::NULL
     }
 }
 

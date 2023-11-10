@@ -123,7 +123,7 @@ pub fn run(args: Arguments) {
     if let Some(search_file) = args.search_file {
         // File `search_file` must exist in the current path
         let mut total_time = 0.0;
-        for _ in 0..3 {
+        for _ in 0..500 {
             if let Ok(lines) = read_lines(&search_file) {
                 let start_ms = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -140,7 +140,7 @@ pub fn run(args: Arguments) {
                 std::process::exit(1);
             }
         }
-        println!("{}", total_time / 3.0);
+        println!("{}", total_time / 500.0);
     } else {
         loop {
             print!("Input your search string: ");

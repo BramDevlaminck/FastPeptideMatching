@@ -35,8 +35,9 @@ impl<'a> Searcher<'a> {
         while self.cursor.next(search_string[index_in_string], self.original_input_string).is_some() {
             index_in_string += 1;
             if index_in_string == string_length {
+                let end_node = self.cursor.current_node_index_in_arena;
                 self.cursor.reset(); // prepare cursor for next search
-                return (true, self.cursor.current_node_index_in_arena)
+                return (true, end_node);
             }
         }
 

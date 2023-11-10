@@ -1,9 +1,8 @@
-use std::thread::current;
 use umgap::taxon::TaxonId;
 use crate::Protein;
 use crate::read_only_cursor::ReadOnlyCursor;
 use crate::taxon_id_calculator::TaxonIdCalculator;
-use crate::tree::{Nullable, Tree};
+use crate::tree::{Node, Nullable, Tree};
 
 pub struct Searcher<'a> {
     cursor: ReadOnlyCursor<'a>,
@@ -25,9 +24,9 @@ impl<'a> Searcher<'a> {
 
     /// Return true as first value of the tuple if we have a valid match until the end
     /// the second value of the tuple is the index of the last current node in the arena during search
-    fn find_end_node(&mut self, search_string: &[u8]) -> (bool, usize) {
+    fn find_end_node(&mut self, search_string: &[u8]) -> (bool, &'a Node) {
         if search_string.is_empty() {
-            return (true, 0);
+            return (true, &self.cursor.tree.arena[0]);
         }
         let string_length = search_string.len();
         let mut index_in_string: usize = 0;
@@ -35,13 +34,13 @@ impl<'a> Searcher<'a> {
         while self.cursor.next(search_string[index_in_string], self.original_input_string).is_some() {
             index_in_string += 1;
             if index_in_string == string_length {
-                let end_node = self.cursor.current_node_index_in_arena;
+                let end_node = self.cursor.current_node;
                 self.cursor.reset(); // prepare cursor for next search
                 return (true, end_node);
             }
         }
 
-        let end_node = self.cursor.current_node_index_in_arena;
+        let end_node = self.cursor.current_node;
         self.cursor.reset(); // prepare cursor for next search
 
         (false, end_node)
@@ -65,14 +64,13 @@ impl<'a> Searcher<'a> {
         }
         let mut suffix_indices_list: Vec<usize> = vec![];
         let mut stack = vec![end_node];
-        while let Some(current_node_index) = stack.pop() {
-            let current_node = &self.cursor.tree.arena[current_node_index];
+        while let Some(current_node) = stack.pop() {
             if !current_node.suffix_index.is_null() {
                 suffix_indices_list.push(current_node.suffix_index);
             } else {
-                current_node.children.iter().for_each(|child| {
+                current_node.children.iter().for_each(|&child| {
                     if !child.is_null() {
-                        stack.push(*child);
+                        stack.push(&self.cursor.tree.arena[child]);
                     }
                 });
             }
@@ -87,7 +85,7 @@ impl<'a> Searcher<'a> {
     pub fn search_taxon_id(&mut self, search_string: &[u8]) -> Option<TaxonId> {
         let (match_found, end_node) = self.find_end_node(search_string);
         if match_found {
-            Some(self.taxon_id_calculator.snap_taxon_id(self.cursor.tree.arena[end_node].taxon_id))
+            Some(self.taxon_id_calculator.snap_taxon_id(end_node.taxon_id))
         } else {
             None
         }

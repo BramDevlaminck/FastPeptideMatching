@@ -1,5 +1,5 @@
+use std::thread::current;
 use umgap::taxon::TaxonId;
-use crate::cursor::CursorIterator;
 use crate::Protein;
 use crate::read_only_cursor::ReadOnlyCursor;
 use crate::taxon_id_calculator::TaxonIdCalculator;
@@ -31,18 +31,18 @@ impl<'a> Searcher<'a> {
         }
         let string_length = search_string.len();
         let mut index_in_string: usize = 0;
-        let mut ret_value = self.cursor.next(search_string[0], self.original_input_string);
 
-        while ret_value == CursorIterator::Ok && index_in_string + 1 < string_length {
+        while self.cursor.next(search_string[index_in_string], self.original_input_string).is_some() {
             index_in_string += 1;
-            ret_value = self.cursor.next(search_string[index_in_string], self.original_input_string);
+            if index_in_string == string_length {
+                let end_node = self.cursor.current_node_index_in_arena;
+                self.cursor.reset(); // prepare cursor for next search
+                return (true, end_node);
+            }
         }
 
         let end_node = self.cursor.current_node_index_in_arena;
         self.cursor.reset(); // prepare cursor for next search
-        if index_in_string == string_length - 1 && ret_value == CursorIterator::Ok {
-            return (true, end_node);
-        }
 
         (false, end_node)
     }

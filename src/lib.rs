@@ -7,16 +7,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{arg, Parser, ValueEnum};
 use umgap::taxon::TaxonId;
-use crate::taxon_id_calculator::{TaxonIdCalculator};
 
 use crate::searcher::Searcher;
+use crate::taxon_id_calculator::TaxonIdCalculator;
 use crate::tree::Tree;
 use crate::tree_builder::{TreeBuilder, UkkonenBuilder};
 
 mod tree_builder;
 mod tree;
 mod cursor;
-mod read_only_cursor;
+mod search_cursor;
 mod searcher;
 mod taxon_id_calculator;
 
@@ -57,7 +57,7 @@ pub struct Arguments {
     taxonomy: String,
     #[arg(long)]
     /// Prints all the taxon ids in the tree in pre-order traversal
-    print_tree_taxon_ids: bool
+    print_tree_taxon_ids: bool,
 }
 
 // The output is wrapped in a Result to allow matching on errors
@@ -131,7 +131,7 @@ pub struct Protein {
 
 /// Main run function that executes all the logic with the received arguments
 pub fn run(args: Arguments) {
-    let proteins= get_proteins_from_database_file(&args.database_file);
+    let proteins = get_proteins_from_database_file(&args.database_file);
     // construct the sequence that will be used to build the tree
     let data = proteins
         .iter()

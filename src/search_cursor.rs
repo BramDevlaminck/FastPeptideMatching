@@ -1,18 +1,17 @@
-use std::cmp::min;
-use crate::cursor::CursorIterator;
-use crate::tree::{NodeIndex, Nullable, Tree};
+use crate::tree::{Node, Nullable, Tree};
 
 /// A Cursor that cannot mutate the tree (which means it can only be used during the search phase)
-pub struct ReadOnlyCursor<'a> {
-    pub current_node_index_in_arena: usize,
+/// But because it does not need a mutable reference we can directly store a reference to the node, and not an index in the arena
+pub struct SearchCursor<'a> {
+    pub current_node: &'a Node,
     pub index: usize,
     pub tree: &'a Tree,
 }
 
-impl<'a> ReadOnlyCursor<'a> {
-    pub fn new(tree: &'a Tree) -> ReadOnlyCursor<'a> {
+impl<'a> SearchCursor<'a> {
+    pub fn new(tree: &'a Tree) -> SearchCursor<'a> {
         Self {
-            current_node_index_in_arena: 0,
+            current_node: &tree.arena[0],
             index: 0,
             tree,
         }
@@ -22,18 +21,17 @@ impl<'a> ReadOnlyCursor<'a> {
     /// Returns Some(()) if we were able to move to the next location.
     /// None otherwise
     pub fn next(&mut self, next_character: u8, bytes_input: &[u8]) -> Option<()> {
-        let current_node = &self.tree.arena[self.current_node_index_in_arena];
-        if self.index < current_node.range.length() {
-            if bytes_input[current_node.range.start + self.index] == next_character {
+        if self.index < self.current_node.range.length() {
+            if bytes_input[self.current_node.range.start + self.index] == next_character {
                 self.index += 1;
                 return Some(());
             }
             return None;
         }
 
-        let child = current_node.get_child(next_character);
+        let child = self.current_node.get_child(next_character);
         if !child.is_null() {
-            self.current_node_index_in_arena = child;
+            self.current_node = &self.tree.arena[child];
             self.index = 1;
             return Some(());
         }
@@ -43,6 +41,6 @@ impl<'a> ReadOnlyCursor<'a> {
 
     pub fn reset(&mut self) {
         self.index = 0;
-        self.current_node_index_in_arena = 0;
+        self.current_node = &self.tree.arena[0];
     }
 }

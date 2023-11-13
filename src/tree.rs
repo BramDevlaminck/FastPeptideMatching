@@ -1,5 +1,6 @@
 use umgap::taxon::TaxonId;
 use crate::tree_builder::TreeBuilder;
+
 pub const MAX_CHILDREN: usize = 28;
 
 /// Custom trait implemented by types that have a value that represents NULL
@@ -47,7 +48,7 @@ pub struct Node {
     pub parent: NodeIndex,
     pub link: NodeIndex,
     pub suffix_index: NodeIndex,
-    pub taxon_id: TaxonId
+    pub taxon_id: TaxonId,
 }
 
 impl Node {
@@ -58,7 +59,7 @@ impl Node {
             parent: NodeIndex::NULL,
             link: NodeIndex::NULL,
             suffix_index: NodeIndex::NULL,
-            taxon_id: TaxonId::MAX // placeholder value until we actually calculate it
+            taxon_id: TaxonId::MAX, // placeholder value until we actually calculate it
         }
     }
 
@@ -70,7 +71,7 @@ impl Node {
             parent,
             link,
             suffix_index,
-            taxon_id: TaxonId::MAX// placeholder value until we actually calculate it
+            taxon_id: TaxonId::MAX,// placeholder value until we actually calculate it
         }
     }
 
@@ -81,7 +82,7 @@ impl Node {
             parent,
             link,
             suffix_index,
-            taxon_id: TaxonId::MAX// placeholder value until we actually calculate it
+            taxon_id: TaxonId::MAX,// placeholder value until we actually calculate it
         };
         children_tuples.iter().for_each(|(char, child)| node.add_child(*char, *child));
         node
@@ -138,14 +139,14 @@ mod tests {
         let input = "ACACACGT$";
 
         let tree = Tree::new(input, UkkonenBuilder::new());
-        let mut control_tree = Tree { arena: vec![]};
+        let mut control_tree = Tree { arena: vec![] };
         for _ in 0..14 {
             control_tree.arena.push(Node::new(
                 Range::new(0, 0),
                 NodeIndex::NULL,
                 [NodeIndex::NULL; MAX_CHILDREN],
                 NodeIndex::NULL,
-                NodeIndex::NULL
+                NodeIndex::NULL,
             ));
         }
 

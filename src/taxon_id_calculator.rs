@@ -1,4 +1,4 @@
-use umgap::{agg, rmq::mix::MixCalculator /*tree::mix::MixCalculator*/, taxon};
+use umgap::{agg, rmq::mix::MixCalculator, taxon};
 use umgap::agg::Aggregator;
 use umgap::taxon::{TaxonId, TaxonList, TaxonTree};
 
@@ -17,7 +17,7 @@ impl TaxonIdCalculator {
         let by_id = TaxonList::new(taxons);
         let snapping = taxon_tree.snapping(&by_id, true);
 
-        let aggregator = MixCalculator::new(taxon_tree ,1.0);
+        let aggregator = MixCalculator::new(taxon_tree, 1.0);
 
         Box::new(Self {
             snapping,
@@ -148,8 +148,8 @@ impl TaxonIdCalculator {
 
 #[cfg(test)]
 mod test {
-    use crate::taxon_id_calculator::TaxonIdCalculator;
     use crate::Protein;
+    use crate::taxon_id_calculator::TaxonIdCalculator;
     use crate::tree::{MAX_CHILDREN, Node, NodeIndex, Nullable, Range, Tree};
 
     #[test]

@@ -1,14 +1,15 @@
 use crate::tree::{Node, Nullable, Tree};
 
 /// A Cursor that cannot mutate the tree (which means it can only be used during the search phase)
-pub struct ReadOnlyCursor<'a> {
+/// But because it does not need a mutable reference we can directly store a reference to the node, and not an index in the arena
+pub struct SearchCursor<'a> {
     pub current_node: &'a Node,
     pub index: usize,
     pub tree: &'a Tree,
 }
 
-impl<'a> ReadOnlyCursor<'a> {
-    pub fn new(tree: &'a Tree) -> ReadOnlyCursor<'a> {
+impl<'a> SearchCursor<'a> {
+    pub fn new(tree: &'a Tree) -> SearchCursor<'a> {
         Self {
             current_node: &tree.arena[0],
             index: 0,

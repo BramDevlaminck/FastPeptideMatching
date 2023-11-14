@@ -140,7 +140,7 @@ impl TaxonIdCalculator {
 
     /// Calculates the aggregate of a vector containing TaxonIds
     fn get_aggregate(&self, ids: Vec<TaxonId>) -> TaxonId {
-        let count = agg::count(ids.into_iter().filter(|&id| id != 0).map(|it| (it, 1.0))); // TODO: waarom de filter id != 0 ?
+        let count = agg::count(ids.into_iter().map(|it| (it, 1.0)));
         self.aggregator.aggregate(&count).unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count))
     }
 }

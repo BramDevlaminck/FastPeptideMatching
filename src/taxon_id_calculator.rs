@@ -66,13 +66,18 @@ impl TaxonIdCalculator {
         }
 
         let mut taxon_ids = vec![];
+        let mut child_has_root_id = false;
         for child in current_node.children {
             if !child.is_null() {
-                taxon_ids.push(self.recursive_calculate_taxon_ids(tree, proteins, child));
+                let child_taxon_id = self.recursive_calculate_taxon_ids(tree, proteins, child);
+                if child_taxon_id == 1 {
+                    child_has_root_id = true;
+                }
+                taxon_ids.push(child_taxon_id);
             }
         }
 
-        let taxon_id = self.get_aggregate(taxon_ids);
+        let taxon_id = if child_has_root_id {1} else { self.get_aggregate(taxon_ids) };
 
         let current_node = &mut tree.arena[current_node_index];
         current_node.taxon_id = taxon_id;

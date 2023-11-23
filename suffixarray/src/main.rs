@@ -1,3 +1,7 @@
+use clap::Parser;
+use suffixarray::{Arguments, run};
+
 fn main() {
-    println!("Hello, world!");
+    let args = Arguments::parse();
+    run(args);
 }

@@ -1,12 +1,10 @@
-use std::fs::File;
 use std::io;
-use std::io::{BufRead, Write};
-use std::ops::Add;
-use std::path::Path;
+use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{arg, Parser, ValueEnum};
-use umgap::taxon::TaxonId;
+
+use tsv_utils::{get_proteins_from_database_file, Protein, proteins_to_concatenated_string, read_lines};
 
 use crate::searcher::Searcher;
 use crate::taxon_id_calculator::TaxonIdCalculator;
@@ -60,13 +58,7 @@ pub struct Arguments {
     print_tree_taxon_ids: bool,
 }
 
-// The output is wrapped in a Result to allow matching on errors
-// Returns an Iterator to the Reader of the lines of the file.
-fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
-    where P: AsRef<Path>, {
-    let file = File::open(filename)?;
-    Ok(io::BufReader::new(file).lines())
-}
+
 
 fn time_execution(searcher: &mut Searcher, f: &dyn Fn(&mut Searcher) -> bool) -> (bool, f64) {
     let start_ms = SystemTime::now()
@@ -124,21 +116,12 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
     }
 }
 
-pub struct Protein {
-    pub sequence: String,
-    pub id: TaxonId,
-}
 
 /// Main run function that executes all the logic with the received arguments
 pub fn run(args: Arguments) {
     let proteins = get_proteins_from_database_file(&args.database_file);
     // construct the sequence that will be used to build the tree
-    let data = proteins
-        .iter()
-        .map(|prot| prot.sequence.clone())
-        .collect::<Vec<String>>()
-        .join("#")
-        .add("$");
+    let data = proteins_to_concatenated_string(&proteins);
 
     // build the tree
     let mut tree = Tree::new(&data, UkkonenBuilder::new());
@@ -161,27 +144,6 @@ pub fn run(args: Arguments) {
 
     let searcher = Searcher::new(&tree, data.as_bytes(), &proteins, &taxon_id_calculator);
     execute_search(searcher, &args)
-}
-
-/// Parse the given database tsv file into a Vector of Proteins with the data from the tsv file
-fn get_proteins_from_database_file(database_file: &str) -> Vec<Protein> {
-    let mut proteins: Vec<Protein> = vec![];
-    if let Ok(lines) = read_lines(database_file) {
-        for line in lines.into_iter().flatten() {
-            let [_, _, protein_id_str, _, _, protein_sequence]: [&str; 6] = line.splitn(6, '\t').collect::<Vec<&str>>().try_into().unwrap();
-            let protein_id_usize = protein_id_str.parse::<TaxonId>().expect("Could not parse id of protein to usize!");
-            proteins.push(
-                Protein {
-                    sequence: protein_sequence.to_uppercase(),
-                    id: protein_id_usize,
-                }
-            )
-        }
-    } else {
-        eprintln!("Database file {} could not be opened!", database_file);
-        std::process::exit(1);
-    }
-    proteins
 }
 
 /// Perform the search as set with the commandline arguments

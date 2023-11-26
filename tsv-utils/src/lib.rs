@@ -45,6 +45,6 @@ pub fn proteins_to_concatenated_string(proteins: &[Protein]) -> String {
         .iter()
         .map(|prot| prot.sequence.clone())
         .collect::<Vec<String>>()
-        .join("#")
+        .join("%")// TODO: we changed here from #, so change insuffixtree that we are not using # anymore, maybe "-" is actually even better, but then we need to change suffixarray too
         .add("$")
 }

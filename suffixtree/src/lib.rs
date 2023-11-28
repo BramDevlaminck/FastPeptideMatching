@@ -7,7 +7,7 @@ use clap::{arg, Parser, ValueEnum};
 use tsv_utils::{get_proteins_from_database_file, Protein, proteins_to_concatenated_string, read_lines};
 
 use crate::searcher::Searcher;
-use crate::taxon_id_calculator::TaxonIdCalculator;
+use crate::tree_taxon_id_calculator::TreeTaxonIdCalculator;
 use crate::tree::Tree;
 use crate::tree_builder::{TreeBuilder, UkkonenBuilder};
 
@@ -16,7 +16,7 @@ mod tree;
 mod cursor;
 mod search_cursor;
 mod searcher;
-mod taxon_id_calculator;
+mod tree_taxon_id_calculator;
 
 
 /// Enum that represents the 2 kinds of search that we support
@@ -126,12 +126,12 @@ pub fn run(args: Arguments) {
     // build the tree
     let mut tree = Tree::new(&data, UkkonenBuilder::new());
     // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
-    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
-    taxon_id_calculator.calculate_taxon_ids(&mut tree, &proteins);
+    let tree_taxon_id_calculator = TreeTaxonIdCalculator::new(&args.taxonomy);
+    tree_taxon_id_calculator.calculate_taxon_ids(&mut tree, &proteins);
 
     // print the taxon ids of the tree if flag set
     if args.print_tree_taxon_ids {
-        TaxonIdCalculator::output_all_taxon_ids(&tree);
+        TreeTaxonIdCalculator::output_all_taxon_ids(&tree);
     }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
@@ -142,7 +142,7 @@ pub fn run(args: Arguments) {
         std::process::exit(1);
     }
 
-    let searcher = Searcher::new(&tree, data.as_bytes(), &proteins, &taxon_id_calculator);
+    let searcher = Searcher::new(&tree, data.as_bytes(), &proteins, &tree_taxon_id_calculator);
     execute_search(searcher, &args)
 }
 

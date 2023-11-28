@@ -236,6 +236,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 
 [[package]]
+name = "cmake"
+version = "0.1.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31c789563b815f77f4250caee12365734369f942439b7defd71e18a48197130"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -412,6 +421,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "get-size"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47b61e2dab7eedce93a83ab3468b919873ff16bac5a3e704011ff836d22b2120"
+
+[[package]]
 name = "gimli"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -479,6 +494,15 @@ name = "libc"
 version = "0.2.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a08173bc88b7955d1b3145aa561539096c421ac8debde8cbc3612ec635fee29b"
+
+[[package]]
+name = "libdivsufsort-rs"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ae6d5de0472a582c6be43c392ba23e8ca59add069c8bd661f6b2a90690be3fb"
+dependencies = [
+ "cmake",
+]
 
 [[package]]
 name = "linux-raw-sys"
@@ -897,7 +921,10 @@ dependencies = [
  "cdivsufsort",
  "clap 4.4.8",
  "divsufsort",
+ "get-size",
+ "libdivsufsort-rs",
  "tsv-utils",
+ "umgap",
 ]
 
 [[package]]
@@ -971,6 +998,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 [[package]]
 name = "tsv-utils"
 version = "0.1.0"
+dependencies = [
+ "umgap",
+]
 
 [[package]]
 name = "umgap"

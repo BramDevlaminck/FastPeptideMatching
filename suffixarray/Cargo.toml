@@ -9,4 +9,7 @@ edition = "2021"
 cdivsufsort = "2.0.0"
 clap = { version = "4.4.8", features = ["derive"] }
 divsufsort = "2.0.0"
+get-size = "0.1.4"
+libdivsufsort-rs = "0.1.0"
 tsv-utils = { path = "../tsv-utils"}
+umgap = "1.0.0"

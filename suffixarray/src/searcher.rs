@@ -1,23 +1,29 @@
-use std::cmp::{max, min};
+use std::cmp::{min};
+use umgap::taxon::TaxonId;
 use tsv_utils::Protein;
+use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 
 pub struct Searcher<'a> {
     original_input_string: &'a [u8],
-    sa: &'a Vec<i32>,
+    sa: &'a Vec<i64>,
+    index_to_protein: &'a Vec<Option<u32>>,
     proteins: &'a Vec<Protein>,
+    taxon_id_calculator: &'a TaxonIdCalculator
 }
 
 impl <'a> Searcher<'a> {
 
-    pub fn new(original_input_string: &'a [u8], sa: &'a Vec<i32>, proteins: &'a Vec<Protein>) -> Self {
+    pub fn new(original_input_string: &'a [u8], sa: &'a Vec<i64>, index_to_protein: &'a Vec<Option<u32>>, proteins: &'a Vec<Protein>, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
         Self {
             original_input_string,
             sa,
-            proteins
+            index_to_protein,
+            proteins,
+            taxon_id_calculator
         }
     }
 
-    fn compare(&self, search_string: &[u8], suffix: i32, skip: usize, compare_fn: fn(usize, usize) -> bool) -> (bool, usize) {
+    fn compare(&self, search_string: &[u8], suffix: i64, skip: usize, compare_fn: fn(usize, usize) -> bool) -> (bool, usize) {
         let mut index = (suffix as usize) + skip;
         let mut index_in_search_string = skip;
         let mut is_cond_or_equal = false;
@@ -116,11 +122,34 @@ impl <'a> Searcher<'a> {
         }
         let (_, max_bound) = self.binary_search_max_match(search_string);
 
-        (true, min_bound, max_bound)
+        (true, min_bound, max_bound + 1) // add 1 to max bound to have exclusive end
     }
 
     pub fn search_if_match(&self, search_string: &[u8]) -> bool {
         self.binary_search_match(search_string)
+    }
+
+    pub fn search_protein(&self, search_string: &[u8]) -> Vec<&Protein> {
+        let (found, min_bound, max_bound) = self.search_bounds(search_string);
+        let mut res = vec![];
+        if !found {
+            return res;
+        }
+        for i in min_bound..max_bound {
+            if let Some(protein_index) = self.index_to_protein[i] {
+                res.push(&self.proteins[protein_index as usize]);
+            }
+        }
+        res
+    }
+
+    pub fn search_taxon_id(&self, search_string: &[u8]) -> Option<TaxonId> {
+        let taxon_ids: Vec<TaxonId> = self.search_protein(search_string).into_iter().map(|prot| prot.id).collect();
+        match taxon_ids.is_empty() {
+            true => None,
+            false => Some(self.taxon_id_calculator.snap_taxon_id(self.taxon_id_calculator.get_aggregate(taxon_ids)))
+        }
+
     }
 
 }

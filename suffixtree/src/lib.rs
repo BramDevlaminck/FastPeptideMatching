@@ -82,15 +82,11 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
         let mut found_total: bool = false;
         let mut total_time: f64 = 0.0;
         for _ in 0..num_iter {
-            let execution_time: f64;
-            let found: bool;
-
-            // CLion / RustRover complains about the destructuring into existing variables not working, but this does indeed work (since rust 1.59)
-            match *search_mode {
-                SearchMode::Match => (found, execution_time) = time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
-                SearchMode::AllOccurrences => (found, execution_time) = time_execution(searcher, &|searcher| !searcher.find_all_suffix_indices(word.as_bytes()).is_empty()),
-                SearchMode::TaxonId => (found, execution_time) = time_execution(searcher, &|searcher| searcher.search_taxon_id(word.as_bytes()).is_some()),
-            }
+            let (found, execution_time) = match *search_mode {
+                SearchMode::Match => time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
+                SearchMode::AllOccurrences => time_execution(searcher, &|searcher| !searcher.find_all_suffix_indices(word.as_bytes()).is_empty()),
+                SearchMode::TaxonId => time_execution(searcher, &|searcher| searcher.search_taxon_id(word.as_bytes()).is_some()),
+            };
             total_time += execution_time;
             found_total = found;
         }

@@ -129,8 +129,6 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
         let mut found_total: bool = false;
         let mut total_time: f64 = 0.0;
         for _ in 0..num_iter {
-
-            // CLion / RustRover complains about the destructuring into existing variables not working, but this does indeed work (since rust 1.59)
             let (found, execution_time) = match *search_mode {
                 SearchMode::Match =>  time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
                 SearchMode::MinMaxBound => time_execution(searcher, &|searcher| searcher.search_bounds(word.as_bytes()).0),

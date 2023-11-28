@@ -40,6 +40,10 @@ pub struct Arguments {
     #[arg(short, long)]
     /// The taxonomy to be used as a tsv file. This is a preprocessed version of the NCBI taxonomy.
     taxonomy: String,
+    /// This will change the output to <found (0 or 1)>;<protein length>;<search time in ms>
+    /// The given num will be used to run the search x times and the average of these x runs will be given as search time
+    #[arg(short, long)]
+    verbose: Option<u8>,
 }
 
 pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -50,8 +54,8 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
 
     let sa = libdivsufsort_rs::divsufsort64(&u8_text.to_vec()).ok_or("Building suffix array failed")?;
 
-    println!("{}", sa.len());
-    println!("{}", sa[0]);
+    // println!("{}", sa.len());
+    // println!("{}", sa[0]);
 
     let mut current_protein_index: u32 = 0;
     let mut index_to_protein: Vec<Option<u32>> = vec![];
@@ -63,7 +67,7 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
             index_to_protein.push(Some(current_protein_index));
         }
     }
-    println!("{}", sa.get_size() + u8_text.get_size() + index_to_protein.get_size()); // print mem size of structures
+    // println!("{}", sa.get_size() + u8_text.get_size() + index_to_protein.get_size()); // print mem size of structures
 
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
 
@@ -75,13 +79,13 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
 /// Perform the search as set with the commandline arguments
 fn execute_search(mut searcher: Searcher, args: &Arguments) {
     let mode = args.mode.as_ref().unwrap();
-    // let verbose = args.verbose;
+    let verbose = args.verbose;
     let mut verbose_output: Vec<String> = vec![];
     if let Some(search_file) = &args.search_file {
         // File `search_file` must exist in the current path
         if let Ok(lines) = read_lines(search_file) {
             for line in lines.into_iter().flatten() {
-                handle_search_word(&mut searcher, line, mode);
+                handle_search_word(&mut searcher, line, mode, verbose, &mut verbose_output);
             }
         } else {
             eprintln!("File {} could not be opened!", search_file);
@@ -96,7 +100,7 @@ fn execute_search(mut searcher: Searcher, args: &Arguments) {
             if io::stdin().read_line(&mut word).is_err() {
                 continue;
             }
-            handle_search_word(&mut searcher, word, mode);
+            handle_search_word(&mut searcher, word, mode, verbose, &mut verbose_output);
         }
     }
     verbose_output.iter().for_each(|val| println!("{}", val));
@@ -115,27 +119,48 @@ fn time_execution(searcher: &mut Searcher, f: &dyn Fn(&mut Searcher) -> bool) ->
 
 
 /// Executes the kind of search indicated by the commandline arguments
-fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &SearchMode) {
+fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &SearchMode, verbose: Option<u8>, verbose_output: &mut Vec<String>) {
     let word = match word.strip_suffix('\n') {
         None => word,
         Some(stripped) => String::from(stripped)
     }.to_uppercase();
-    match *search_mode {
-        SearchMode::Match => println!("{}", searcher.search_if_match(word.as_bytes())),
-        SearchMode::MinMaxBound => {
-            let (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
-            println!("{found};{min_bound};{max_bound}");
+
+    if let Some(num_iter) = verbose {
+        let mut found_total: bool = false;
+        let mut total_time: f64 = 0.0;
+        for _ in 0..num_iter {
+
+            // CLion / RustRover complains about the destructuring into existing variables not working, but this does indeed work (since rust 1.59)
+            let (found, execution_time) = match *search_mode {
+                SearchMode::Match =>  time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
+                SearchMode::MinMaxBound => time_execution(searcher, &|searcher| searcher.search_bounds(word.as_bytes()).0),
+                SearchMode::AllOccurrences => time_execution(searcher, &|searcher| !searcher.search_protein(word.as_bytes()).is_empty()),
+                SearchMode::TaxonId => time_execution(searcher, &|searcher| searcher.search_taxon_id(word.as_bytes()).is_some()),
+            };
+            total_time += execution_time;
+            found_total = found;
         }
-        SearchMode::AllOccurrences => {
-            let results = searcher.search_protein(word.as_bytes());
-            println!("found {} matches", results.len());
-            results.iter()
-                .for_each(|res| println!("* {}", res.sequence));
-        }
-        SearchMode::TaxonId => {
-            match searcher.search_taxon_id(word.as_bytes()) {
-                Some(taxon_id) => println!("{}", taxon_id),
-                None => println!("/"),
+        let avg = total_time / (num_iter as f64);
+
+        verbose_output.push(format!("{};{};{}", found_total as u8, word.len(), avg));
+    } else {
+        match *search_mode {
+            SearchMode::Match => println!("{}", searcher.search_if_match(word.as_bytes())),
+            SearchMode::MinMaxBound => {
+                let (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
+                println!("{found};{min_bound};{max_bound}");
+            }
+            SearchMode::AllOccurrences => {
+                let results = searcher.search_protein(word.as_bytes());
+                println!("found {} matches", results.len());
+                results.iter()
+                    .for_each(|res| println!("* {}", res.sequence));
+            }
+            SearchMode::TaxonId => {
+                match searcher.search_taxon_id(word.as_bytes()) {
+                    Some(taxon_id) => println!("{}", taxon_id),
+                    None => println!("/"),
+                }
             }
         }
     }

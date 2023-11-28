@@ -7,6 +7,12 @@ use std::ops::Add;
 use std::path::Path;
 use umgap::taxon::TaxonId;
 
+// END_CHARACTER should ALWAYS be lexicographically than SEPARATION_CHARACTER
+// otherwise the building of the suffix array will not happen correctly
+pub static SEPARATION_CHARACTER: u8 = b'-';
+pub static END_CHARACTER: u8 = b'$';
+
+
 // The output is wrapped in a Result to allow matching on errors
 // Returns an Iterator to the Reader of the lines of the file.
 pub fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
@@ -48,6 +54,6 @@ pub fn proteins_to_concatenated_string(proteins: &[Protein]) -> String {
         .iter()
         .map(|prot| prot.sequence.clone())
         .collect::<Vec<String>>()
-        .join("-")// TODO: we changed here from #, so change insuffixtree that we are not using # anymore, maybe "-" is actually even better, but then we need to change suffixarray too
-        .add("$")
+        .join(&(SEPARATION_CHARACTER as char).to_string())
+        .add(&(END_CHARACTER as char).to_string())
 }

@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{arg, Parser, ValueEnum};
 use get_size::GetSize;
 
-use tsv_utils::{get_proteins_from_database_file, proteins_to_concatenated_string, read_lines};
+use tsv_utils::{END_CHARACTER, get_proteins_from_database_file, proteins_to_concatenated_string, read_lines, SEPARATION_CHARACTER};
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use crate::searcher::Searcher;
 
@@ -54,20 +54,16 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
 
     let sa = libdivsufsort_rs::divsufsort64(&u8_text.to_vec()).ok_or("Building suffix array failed")?;
 
-    // println!("{}", sa.len());
-    // println!("{}", sa[0]);
-
     let mut current_protein_index: u32 = 0;
     let mut suffix_index_to_protein: Vec<Option<u32>> = vec![];
     for &char in u8_text.iter() {
-        if char == b'-' || char == b'$' {
+        if char == SEPARATION_CHARACTER || char == END_CHARACTER {
             current_protein_index += 1;
             suffix_index_to_protein.push(None);
         } else {
             suffix_index_to_protein.push(Some(current_protein_index));
         }
     }
-    // println!("{}", sa.get_size() + u8_text.get_size() + index_to_protein.get_size()); // print mem size of structures
 
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
 

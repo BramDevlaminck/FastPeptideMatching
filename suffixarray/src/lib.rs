@@ -58,20 +58,20 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     // println!("{}", sa[0]);
 
     let mut current_protein_index: u32 = 0;
-    let mut index_to_protein: Vec<Option<u32>> = vec![];
+    let mut suffix_index_to_protein: Vec<Option<u32>> = vec![];
     for &char in u8_text.iter() {
         if char == b'-' || char == b'$' {
             current_protein_index += 1;
-            index_to_protein.push(None);
+            suffix_index_to_protein.push(None);
         } else {
-            index_to_protein.push(Some(current_protein_index));
+            suffix_index_to_protein.push(Some(current_protein_index));
         }
     }
     // println!("{}", sa.get_size() + u8_text.get_size() + index_to_protein.get_size()); // print mem size of structures
 
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
 
-    let searcher = Searcher::new(u8_text, &sa, &index_to_protein, &proteins, &taxon_id_calculator);
+    let searcher = Searcher::new(u8_text, &sa, &suffix_index_to_protein, &proteins, &taxon_id_calculator);
     execute_search(searcher, &args);
     Ok(())
 }

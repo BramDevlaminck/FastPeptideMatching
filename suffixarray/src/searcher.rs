@@ -6,18 +6,18 @@ use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 pub struct Searcher<'a> {
     original_input_string: &'a [u8],
     sa: &'a Vec<i64>,
-    index_to_protein: &'a Vec<Option<u32>>,
+    suffix_index_to_protein: &'a Vec<Option<u32>>,
     proteins: &'a Vec<Protein>,
     taxon_id_calculator: &'a TaxonIdCalculator
 }
 
 impl <'a> Searcher<'a> {
 
-    pub fn new(original_input_string: &'a [u8], sa: &'a Vec<i64>, index_to_protein: &'a Vec<Option<u32>>, proteins: &'a Vec<Protein>, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
+    pub fn new(original_input_string: &'a [u8], sa: &'a Vec<i64>, suffix_index_to_protein: &'a Vec<Option<u32>>, proteins: &'a Vec<Protein>, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
         Self {
             original_input_string,
             sa,
-            index_to_protein,
+            suffix_index_to_protein,
             proteins,
             taxon_id_calculator
         }
@@ -136,7 +136,8 @@ impl <'a> Searcher<'a> {
             return res;
         }
         for i in min_bound..max_bound {
-            if let Some(protein_index) = self.index_to_protein[i] {
+            let suffix_index = self.sa[i] as usize;
+            if let Some(protein_index) = self.suffix_index_to_protein[suffix_index] {
                 res.push(&self.proteins[protein_index as usize]);
             }
         }

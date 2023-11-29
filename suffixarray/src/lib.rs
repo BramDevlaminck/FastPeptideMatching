@@ -150,22 +150,17 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
         verbose_output.push(format!("{};{};{}", found_total as u8, word.len(), avg));
     } else {
         match *search_mode {
-            SearchMode::Match => println!("{}", searcher.search_if_match(word.as_bytes())),
+            SearchMode::Match => {
+                let _found = searcher.search_if_match(word.as_bytes());
+            },
             SearchMode::MinMaxBound => {
-                let (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
-                println!("{found};{min_bound};{max_bound}");
+                let (_found, _min_bound, _max_bound) = searcher.search_bounds(word.as_bytes());
             }
             SearchMode::AllOccurrences => {
-                let results = searcher.search_protein(word.as_bytes());
-                println!("found {} matches", results.len());
-                results.iter()
-                    .for_each(|res| println!("* {}", res.sequence));
+                let _results = searcher.search_protein(word.as_bytes());
             }
             SearchMode::TaxonId => {
-                match searcher.search_taxon_id(word.as_bytes()) {
-                    Some(taxon_id) => println!("{}", taxon_id),
-                    None => println!("/"),
-                }
+                let _result = searcher.search_taxon_id(word.as_bytes());
             }
         }
     }

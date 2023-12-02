@@ -58,13 +58,14 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     let sa = libdivsufsort_rs::divsufsort64(&u8_text.to_vec()).ok_or("Building suffix array failed")?;
 
     let mut current_protein_index: u32 = 0;
-    let mut suffix_index_to_protein: Vec<Option<u32>> = vec![];
+    let mut suffix_index_to_protein: Vec<u32> = vec![];
     for &char in u8_text.iter() {
         if char == SEPARATION_CHARACTER || char == END_CHARACTER {
             current_protein_index += 1;
-            suffix_index_to_protein.push(None);
+            suffix_index_to_protein.push(u32::NULL);
         } else {
-            suffix_index_to_protein.push(Some(current_protein_index));
+            assert_ne!(current_protein_index, u32::NULL);
+            suffix_index_to_protein.push(current_protein_index);
         }
     }
 
@@ -168,5 +169,20 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
                 }
             }
         }
+    }
+}
+
+/// Custom trait implemented by types that have a value that represents NULL
+pub trait Nullable<T> {
+    const NULL: T;
+
+    fn is_null(&self) -> bool;
+}
+
+impl Nullable<u32> for u32 {
+    const NULL: u32 = u32::MAX;
+
+    fn is_null(&self) -> bool {
+        *self == Self::NULL
     }
 }

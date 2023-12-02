@@ -44,6 +44,9 @@ pub struct Arguments {
     /// The given num will be used to run the search x times and the average of these x runs will be given as search time
     #[arg(short, long)]
     verbose: Option<u8>,
+    /// This will only build the tree and stop after that is completed. Used during benchmarking.
+    #[arg(long)]
+    build_only: bool,
 }
 
 pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -66,6 +69,14 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     }
 
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+
+    // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
+    if args.build_only {
+        return Ok(());
+    } else if args.mode.is_none() {
+        eprintln!("search mode expected!");
+        std::process::exit(1);
+    }
 
     let searcher = Searcher::new(u8_text, &sa, &suffix_index_to_protein, &proteins, &taxon_id_calculator);
     execute_search(searcher, &args);

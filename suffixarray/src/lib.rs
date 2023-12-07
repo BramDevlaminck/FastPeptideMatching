@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{arg, Parser, ValueEnum};
 use get_size::GetSize;
 
-use tsv_utils::{END_CHARACTER, get_proteins_from_database_file, proteins_to_concatenated_string, read_lines, SEPARATION_CHARACTER};
+use tsv_utils::{END_CHARACTER, get_proteins_from_database_file, Proteins, read_lines, SEPARATION_CHARACTER};
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use crate::searcher::Searcher;
 
@@ -52,19 +52,20 @@ pub struct Arguments {
 pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     let proteins = get_proteins_from_database_file(&args.database_file);
     // construct the sequence that will be used to build the tree
-    let data = proteins_to_concatenated_string(&proteins);
-    let u8_text = data.as_bytes();
+
+    let u8_text = proteins.input_string.as_bytes();
 
     let sa = libdivsufsort_rs::divsufsort64(&u8_text.to_vec()).ok_or("Building suffix array failed")?;
 
     let mut current_protein_index: u32 = 0;
-    let mut suffix_index_to_protein: Vec<Option<u32>> = vec![];
+    let mut suffix_index_to_protein: Vec<u32> = vec![];
     for &char in u8_text.iter() {
         if char == SEPARATION_CHARACTER || char == END_CHARACTER {
             current_protein_index += 1;
-            suffix_index_to_protein.push(None);
+            suffix_index_to_protein.push(u32::NULL);
         } else {
-            suffix_index_to_protein.push(Some(current_protein_index));
+            assert_ne!(current_protein_index, u32::NULL);
+            suffix_index_to_protein.push(current_protein_index);
         }
     }
 
@@ -78,13 +79,13 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
         std::process::exit(1);
     }
 
-    let searcher = Searcher::new(u8_text, &sa, &suffix_index_to_protein, &proteins, &taxon_id_calculator);
-    execute_search(searcher, &args);
+    let searcher = Searcher::new(u8_text, &sa, &suffix_index_to_protein, &proteins.proteins, &taxon_id_calculator);
+    execute_search(searcher, &proteins, &args);
     Ok(())
 }
 
 /// Perform the search as set with the commandline arguments
-fn execute_search(mut searcher: Searcher, args: &Arguments) {
+fn execute_search(mut searcher: Searcher, proteins: &Proteins, args: &Arguments) {
     let mode = args.mode.as_ref().unwrap();
     let verbose = args.verbose;
     let mut verbose_output: Vec<String> = vec![];
@@ -92,7 +93,7 @@ fn execute_search(mut searcher: Searcher, args: &Arguments) {
         // File `search_file` must exist in the current path
         if let Ok(lines) = read_lines(search_file) {
             for line in lines.into_iter().flatten() {
-                handle_search_word(&mut searcher, line, mode, verbose, &mut verbose_output);
+                handle_search_word(&mut searcher, proteins, line, mode, verbose, &mut verbose_output);
             }
         } else {
             eprintln!("File {} could not be opened!", search_file);
@@ -107,7 +108,7 @@ fn execute_search(mut searcher: Searcher, args: &Arguments) {
             if io::stdin().read_line(&mut word).is_err() {
                 continue;
             }
-            handle_search_word(&mut searcher, word, mode, verbose, &mut verbose_output);
+            handle_search_word(&mut searcher, proteins, word, mode, verbose, &mut verbose_output);
         }
     }
     verbose_output.iter().for_each(|val| println!("{}", val));
@@ -126,7 +127,7 @@ fn time_execution(searcher: &mut Searcher, f: &dyn Fn(&mut Searcher) -> bool) ->
 
 
 /// Executes the kind of search indicated by the commandline arguments
-fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &SearchMode, verbose: Option<u8>, verbose_output: &mut Vec<String>) {
+fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String, search_mode: &SearchMode, verbose: Option<u8>, verbose_output: &mut Vec<String>) {
     let word = match word.strip_suffix('\n') {
         None => word,
         Some(stripped) => String::from(stripped)
@@ -158,8 +159,8 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
             SearchMode::AllOccurrences => {
                 let results = searcher.search_protein(word.as_bytes());
                 println!("found {} matches", results.len());
-                results.iter()
-                    .for_each(|res| println!("* {}", res.sequence));
+                results.into_iter()
+                    .for_each(|res| println!("* {}", proteins.get_sequence(res)));
             }
             SearchMode::TaxonId => {
                 match searcher.search_taxon_id(word.as_bytes()) {
@@ -168,5 +169,20 @@ fn handle_search_word(searcher: &mut Searcher, word: String, search_mode: &Searc
                 }
             }
         }
+    }
+}
+
+/// Custom trait implemented by types that have a value that represents NULL
+pub trait Nullable<T> {
+    const NULL: T;
+
+    fn is_null(&self) -> bool;
+}
+
+impl Nullable<u32> for u32 {
+    const NULL: u32 = u32::MAX;
+
+    fn is_null(&self) -> bool {
+        *self == Self::NULL
     }
 }

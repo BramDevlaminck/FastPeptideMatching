@@ -2,18 +2,19 @@ use std::cmp::{min};
 use umgap::taxon::TaxonId;
 use tsv_utils::Protein;
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
+use crate::Nullable;
 
 pub struct Searcher<'a> {
     original_input_string: &'a [u8],
     sa: &'a Vec<i64>,
-    suffix_index_to_protein: &'a Vec<Option<u32>>,
+    suffix_index_to_protein: &'a Vec<u32>,
     proteins: &'a Vec<Protein>,
     taxon_id_calculator: &'a TaxonIdCalculator
 }
 
 impl <'a> Searcher<'a> {
 
-    pub fn new(original_input_string: &'a [u8], sa: &'a Vec<i64>, suffix_index_to_protein: &'a Vec<Option<u32>>, proteins: &'a Vec<Protein>, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
+    pub fn new(original_input_string: &'a [u8], sa: &'a Vec<i64>, suffix_index_to_protein: &'a Vec<u32>, proteins: &'a Vec<Protein>, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
         Self {
             original_input_string,
             sa,
@@ -137,7 +138,8 @@ impl <'a> Searcher<'a> {
         }
         for i in min_bound..max_bound {
             let suffix_index = self.sa[i] as usize;
-            if let Some(protein_index) = self.suffix_index_to_protein[suffix_index] {
+            let protein_index = self.suffix_index_to_protein[suffix_index];
+            if !protein_index.is_null() {
                 res.push(&self.proteins[protein_index as usize]);
             }
         }

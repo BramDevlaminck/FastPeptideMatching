@@ -1,4 +1,5 @@
 mod searcher;
+mod binary;
 
 use std::error::Error;
 use std::io;
@@ -6,9 +7,9 @@ use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{arg, Parser, ValueEnum};
 use get_size::GetSize;
-
 use tsv_utils::{END_CHARACTER, get_proteins_from_database_file, proteins_to_concatenated_string, read_lines, SEPARATION_CHARACTER};
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
+use crate::binary::write_binary;
 use crate::searcher::Searcher;
 
 /// Enum that represents the 2 kinds of search that we support
@@ -47,6 +48,9 @@ pub struct Arguments {
     /// This will only build the tree and stop after that is completed. Used during benchmarking.
     #[arg(long)]
     build_only: bool,
+    /// Output file to store the built index.
+    #[arg(long)]
+    output: Option<String>,
 }
 
 pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -69,6 +73,10 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     }
 
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+
+    if let Some(output) = &args.output {
+        write_binary(&sa, u8_text, output).unwrap()
+    }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {

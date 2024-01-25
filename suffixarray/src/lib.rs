@@ -7,12 +7,8 @@ use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{arg, Parser, ValueEnum};
 use get_size::GetSize;
-<<<<<<< HEAD
-use tsv_utils::{END_CHARACTER, get_proteins_from_database_file, proteins_to_concatenated_string, read_lines, SEPARATION_CHARACTER};
-=======
-
 use tsv_utils::{END_CHARACTER, get_proteins_from_database_file, Proteins, read_lines, SEPARATION_CHARACTER};
->>>>>>> 171cc5279d96620009da4355f416718b3a20a5b4
+
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use crate::binary::write_binary;
 use crate::searcher::Searcher;

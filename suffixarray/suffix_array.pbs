@@ -24,7 +24,7 @@ module swap cluster/gallade
 #PBS -e stderr.$PBS_JOBID
 
 folder="swissprot_var1/"
-prefix="~/data/BenchmarkData/"
+prefix="$VSC_DATA/BenchmarkData/"
 search_file="search_file_no_mch.tsv"
 
 # go to current working dir and execute

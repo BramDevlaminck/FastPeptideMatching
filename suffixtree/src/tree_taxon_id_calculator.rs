@@ -238,19 +238,19 @@ mod test {
 
         let proteins = vec![
             Protein {
-                sequence: "ABC".to_string(),
+                sequence: (0, 3),
                 id: 10,
             },
             Protein {
-                sequence: "XYZ".to_string(),
+                sequence: (4, 7),
                 id: 9,
             },
             Protein {
-                sequence: "XAZ".to_string(),
+                sequence: (8, 11),
                 id: 20,
             },
             Protein {
-                sequence: "W".to_string(),
+                sequence: (12, 13),
                 id: 2,
             },
         ];

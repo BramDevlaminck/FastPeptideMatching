@@ -50,7 +50,7 @@ pub struct Arguments {
     #[arg(long)]
     build_only: bool,
     /// Output file to store the built index.
-    #[arg(long)]
+    #[arg(short, long)]
     output: Option<String>,
 }
 

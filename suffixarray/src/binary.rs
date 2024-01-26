@@ -33,6 +33,7 @@ impl Serializable for Vec<i64> {
 }
 
 // from: https://gist.github.com/taylorsmithgg/ba7b070c0964aa8b86d311ab6f8f5508
+// https://dev.to/oliverjumpertz/how-to-write-files-in-rust-m06?comments_sort=top
 pub fn write_binary(suffix_array: &Vec<i64>, text: &[u8], name: &str) -> Result<(), std::io::Error> {
     let mut f = OpenOptions::new()
         .create(true)
@@ -40,8 +41,8 @@ pub fn write_binary(suffix_array: &Vec<i64>, text: &[u8], name: &str) -> Result<
         .read(true)
         .open(name.to_owned() + "_sa.bin")
         .unwrap();
-
-    let write_result = f.write(&suffix_array.serialize()).unwrap();
+    // TODO: remove unwrap and handle error
+    f.write_all(&suffix_array.serialize()).unwrap();
 
     let mut f = OpenOptions::new()
         .create(true)
@@ -50,7 +51,7 @@ pub fn write_binary(suffix_array: &Vec<i64>, text: &[u8], name: &str) -> Result<
         .open(name.to_owned() + "_text.bin")
         .unwrap();
 
-    let write_result = f.write(text).unwrap();
+    f.write_all(text).unwrap();
 
     Ok(())
 }

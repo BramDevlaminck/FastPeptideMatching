@@ -52,6 +52,9 @@ pub struct Arguments {
     /// Output file to store the built index.
     #[arg(short, long)]
     output: Option<String>,
+    /// The sample rate used on the suffix array (default value 1, which means every value in the SA is used)
+    #[arg(long, default_value_t = 1)]
+    sample_rate: usize,
 }
 
 pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -60,8 +63,16 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
 
     let u8_text = proteins.input_string.as_bytes();
 
-    let sa = libdivsufsort_rs::divsufsort64(&u8_text.to_vec()).ok_or("Building suffix array failed")?;
+    let mut sa = libdivsufsort_rs::divsufsort64(&u8_text.to_vec()).ok_or("Building suffix array failed")?;
 
+    // TODO: idee via binair zoeken dat geheugen efficiënter zou moeten zijn.
+    //  ipv per index bij te houden bij welke proteïne het hoort.
+    //  kunnen we een array maken dat 1 waarde per protïne bevat. Dit is de kleinste suffix-index die er bij hoort.
+    //  dan kan je binair zoeken in deze lijst.
+    //  bv: [0, 2, 5, 10] (dit zijn de suffixen)
+    //  zoek suffix 8, dan zal dit binair zoeken eindigen op index 2 in de lijst, dus weten we dat suffix 8 bij proteïne op index 2 hoort
+
+    // Uniprot does not have more that u32::MAX proteins, so a larger type is not needed
     let mut current_protein_index: u32 = 0;
     let mut suffix_index_to_protein: Vec<u32> = vec![];
     for &char in u8_text.iter() {
@@ -73,6 +84,19 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
             suffix_index_to_protein.push(current_protein_index);
         }
     }
+
+    // make the SA sparse and decrease the vector size
+    let mut current_sampled_index = 0;
+    for i in 0..sa.len() {
+        let current_sa_val = sa[i];
+        if current_sa_val % args.sample_rate as i64 == 0 {
+            sa[current_sampled_index] = current_sa_val;
+            current_sampled_index += 1;
+        }
+    }
+    // make shorter
+    sa.resize(current_sampled_index, 0);
+
 
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
 
@@ -88,7 +112,7 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
         std::process::exit(1);
     }
 
-    let searcher = Searcher::new(u8_text, &sa, &suffix_index_to_protein, &proteins.proteins, &taxon_id_calculator);
+    let searcher = Searcher::new(u8_text, &sa, args.sample_rate, &suffix_index_to_protein, &proteins.proteins, &taxon_id_calculator);
     execute_search(searcher, &proteins, &args);
     Ok(())
 }
@@ -141,6 +165,15 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
         None => word,
         Some(stripped) => String::from(stripped)
     }.to_uppercase();
+    // words that are shorter than the sample rate are not searchable
+    if word.len() < searcher.sample_rate {
+        if verbose.is_some() {
+            verbose_output.push(format!("(word too short short for SA sample size);{};", word.len()));
+        } else {
+            println!("/ (word too short short for SA sample size)")
+        }
+        return;
+    }
 
     if let Some(num_iter) = verbose {
         let mut found_total: bool = false;

@@ -15,18 +15,24 @@ module swap cluster/gallade
 
 # define requested memory, cpu resources and email notifications
 #PBS -m abe
-#PBS -l walltime=00:05:00
-#PBS -l mem=5gb
-#PBS -N suffix_array_construction
+#PBS -l walltime=06:30:00
+#PBS -l mem=920gb
+# ask for 1 node, 1 cpu (not more needed since we don't have parallellism)
+#PBS -l nodes=1:ppn=1
+#PBS -N suffix_array_construction_uniprot
 
 # define output and error files
 #PBS -o stdout.$PBS_JOBID
 #PBS -e stderr.$PBS_JOBID
 
-folder="swissprot_var1/"
-prefix="$VSC_DATA/BenchmarkData/"
-search_file="search_file_no_mch.tsv"
+#folder="swissprot_var1/"
+#prefix="$VSC_DATA/BenchmarkData/"
+# search_file="search_file_no_mch.tsv"
+
+folder=""
+prefix="$VSC_DATA_VO/bram/"
 
 # go to current working dir and execute
 cd $PBS_O_WORKDIR
-./suffixarray  -d "$prefix""$folder"protein_database.tsv -s "$prefix""$folder""$search_file" -t "$prefix"taxons.tsv -m all-occurrences
+./suffixarray -d "$prefix""$folder"uniprotKB_protein_database.tsv -t "$prefix"taxons.tsv --build-only --suffix-to-protein-mapping sparse -o "$prefix"uniprot_indexed
+# ./suffixarray -d "$prefix""$folder"protein_database.tsv -s "$prefix""$folder""$search_file" -t "$prefix"taxons.tsv -m all-occurrences

@@ -1,17 +1,21 @@
-mod searcher;
-mod binary;
-
 use std::error::Error;
 use std::io;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
+
 use clap::{arg, Parser, ValueEnum};
 use get_size::GetSize;
-use tsv_utils::{END_CHARACTER, get_proteins_from_database_file, Proteins, read_lines, SEPARATION_CHARACTER};
 
+use tsv_utils::{get_proteins_from_database_file, Proteins, read_lines};
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
+
 use crate::binary::write_binary;
 use crate::searcher::Searcher;
+use crate::suffix_to_protein_index::{DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle};
+
+mod searcher;
+mod binary;
+mod suffix_to_protein_index;
 
 /// Enum that represents the 2 kinds of search that we support
 /// - Search until match and return boolean that indicates if there is a match
@@ -55,35 +59,26 @@ pub struct Arguments {
     /// The sample rate used on the suffix array (default value 1, which means every value in the SA is used)
     #[arg(long, default_value_t = 1)]
     sample_rate: usize,
+    /// Set the style used to map back from the suffix to the protein. 2 options <sparse> or <dense>. Dense is default
+    /// Dense uses O(n) memory with n the size of the input text, and takes O(1) time to find the mapping
+    /// Sparse uses O(m) memory with m the number of proteins, and takes O(log m) to find the mapping
+    #[arg(long, value_enum, default_value_t = SuffixToProteinMappingStyle::Dense)]
+    suffix_to_protein_mapping: SuffixToProteinMappingStyle,
 }
 
 pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     let proteins = get_proteins_from_database_file(&args.database_file);
     // construct the sequence that will be used to build the tree
 
-    let u8_text = proteins.input_string.as_bytes();
+    // let u8_text = proteins.input_string.into_bytes();
 
-    let mut sa = libdivsufsort_rs::divsufsort64(&u8_text.to_vec()).ok_or("Building suffix array failed")?;
+    let mut sa = libdivsufsort_rs::divsufsort64(&proteins.input_string).ok_or("Building suffix array failed")?;
 
-    // TODO: idee via binair zoeken dat geheugen efficiënter zou moeten zijn.
-    //  ipv per index bij te houden bij welke proteïne het hoort.
-    //  kunnen we een array maken dat 1 waarde per protïne bevat. Dit is de kleinste suffix-index die er bij hoort.
-    //  dan kan je binair zoeken in deze lijst.
-    //  bv: [0, 2, 5, 10] (dit zijn de suffixen)
-    //  zoek suffix 8, dan zal dit binair zoeken eindigen op index 2 in de lijst, dus weten we dat suffix 8 bij proteïne op index 2 hoort
-
-    // Uniprot does not have more that u32::MAX proteins, so a larger type is not needed
-    let mut current_protein_index: u32 = 0;
-    let mut suffix_index_to_protein: Vec<u32> = vec![];
-    for &char in u8_text.iter() {
-        if char == SEPARATION_CHARACTER || char == END_CHARACTER {
-            current_protein_index += 1;
-            suffix_index_to_protein.push(u32::NULL);
-        } else {
-            assert_ne!(current_protein_index, u32::NULL);
-            suffix_index_to_protein.push(current_protein_index);
-        }
-    }
+    // build the right mapping index, use box to be able to store both types in this variable
+    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
+        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
+        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+    };
 
     // make the SA sparse and decrease the vector size
     let mut current_sampled_index = 0;
@@ -97,11 +92,10 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     // make shorter
     sa.resize(current_sampled_index, 0);
 
-
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
 
     if let Some(output) = &args.output {
-        write_binary(&sa, u8_text, output).unwrap()
+        write_binary(&sa, &proteins.input_string, output).unwrap()
     }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
@@ -112,7 +106,7 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
         std::process::exit(1);
     }
 
-    let searcher = Searcher::new(u8_text, &sa, args.sample_rate, &suffix_index_to_protein, &proteins.proteins, &taxon_id_calculator);
+    let searcher = Searcher::new(&sa, args.sample_rate, suffix_index_to_protein.as_ref(), &proteins, &taxon_id_calculator);
     execute_search(searcher, &proteins, &args);
     Ok(())
 }
@@ -180,7 +174,7 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
         let mut total_time: f64 = 0.0;
         for _ in 0..num_iter {
             let (found, execution_time) = match *search_mode {
-                SearchMode::Match =>  time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
+                SearchMode::Match => time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
                 SearchMode::MinMaxBound => time_execution(searcher, &|searcher| searcher.search_bounds(word.as_bytes()).0),
                 SearchMode::AllOccurrences => time_execution(searcher, &|searcher| !searcher.search_protein(word.as_bytes()).is_empty()),
                 SearchMode::TaxonId => time_execution(searcher, &|searcher| searcher.search_taxon_id(word.as_bytes()).is_some()),

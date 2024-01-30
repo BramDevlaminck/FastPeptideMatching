@@ -32,7 +32,7 @@ pub struct Tree {
 }
 
 impl Tree {
-    pub fn new(data: &str, builder: impl TreeBuilder) -> Self {
+    pub fn new(data: &Vec<u8>, builder: impl TreeBuilder) -> Self {
         builder.build(
             data,
             Tree {
@@ -137,9 +137,9 @@ mod tests {
 
     #[test]
     fn total_test() {
-        let input = "ACACACGT$";
+        let input = "ACACACGT$".as_bytes().to_vec();
 
-        let tree = Tree::new(input, UkkonenBuilder::new());
+        let tree = Tree::new(&input, UkkonenBuilder::new());
         let mut control_tree = Tree { arena: vec![] };
         for _ in 0..14 {
             control_tree.arena.push(Node::new(

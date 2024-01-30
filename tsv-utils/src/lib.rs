@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io;
 use std::io::BufRead;
 use std::path::Path;
+use std::str::Utf8Error;
 use umgap::taxon::TaxonId;
 
 // END_CHARACTER should ALWAYS be lexicographically than SEPARATION_CHARACTER
@@ -21,15 +22,15 @@ pub fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
 }
 
 pub struct Proteins {
-    pub input_string: String,
+    pub input_string: Vec<u8>,
     pub proteins: Vec<Protein>
 }
 
 impl Proteins {
 
-    pub fn get_sequence(&self, protein: &Protein) -> &str {
+    pub fn get_sequence(&self, protein: &Protein) ->&str {
         let (begin, size) = protein.sequence;
-        &self.input_string[begin..begin + size as usize]
+        std::str::from_utf8( &self.input_string[begin..begin + size as usize]).unwrap() // should never fail since the input string will always be utf8
     }
 }
 
@@ -67,7 +68,7 @@ pub fn get_proteins_from_database_file(database_file: &str) -> Proteins {
     }
     input_string.push(END_CHARACTER as char);
     Proteins {
-        input_string,
+        input_string: input_string.into_bytes(),
         proteins
     }
 }

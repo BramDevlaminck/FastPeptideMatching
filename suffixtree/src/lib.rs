@@ -138,7 +138,7 @@ pub fn run(args: Arguments) {
         std::process::exit(1);
     }
 
-    let searcher = Searcher::new(&tree, data.as_bytes(), &proteins.proteins, &tree_taxon_id_calculator);
+    let searcher = Searcher::new(&tree, data, &proteins.proteins, &tree_taxon_id_calculator);
     execute_search(searcher, &proteins, &args)
 }
 

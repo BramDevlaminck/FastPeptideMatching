@@ -34,7 +34,7 @@ impl Serializable for Vec<i64> {
 
 // from: https://gist.github.com/taylorsmithgg/ba7b070c0964aa8b86d311ab6f8f5508
 // https://dev.to/oliverjumpertz/how-to-write-files-in-rust-m06?comments_sort=top
-pub fn write_binary(suffix_array: &Vec<i64>, text: &[u8], name: &str) -> Result<(), std::io::Error> {
+pub fn write_binary(suffix_array: &Vec<i64>, text: &Vec<u8>, name: &str) -> Result<(), std::io::Error> {
     let mut f = OpenOptions::new()
         .create(true)
         .write(true)

@@ -1,23 +1,22 @@
 use std::cmp::{min};
 use umgap::taxon::TaxonId;
-use tsv_utils::Protein;
+use tsv_utils::{Protein, Proteins};
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use crate::Nullable;
+use crate::suffix_to_protein_index::SuffixToProteinIndex;
 
 pub struct Searcher<'a> {
-    original_input_string: &'a [u8],
     sa: &'a Vec<i64>,
     pub sample_rate: usize,
-    suffix_index_to_protein: &'a Vec<u32>,
-    proteins: &'a Vec<Protein>,
+    suffix_index_to_protein: &'a dyn SuffixToProteinIndex,
+    proteins: &'a Proteins,
     taxon_id_calculator: &'a TaxonIdCalculator
 }
 
 impl <'a> Searcher<'a> {
 
-    pub fn new(original_input_string: &'a [u8], sa: &'a Vec<i64>, sample_rate: usize, suffix_index_to_protein: &'a Vec<u32>, proteins: &'a Vec<Protein>, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
+    pub fn new(sa: &'a Vec<i64>, sample_rate: usize, suffix_index_to_protein: &'a dyn SuffixToProteinIndex, proteins: &'a Proteins, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
         Self {
-            original_input_string,
             sa,
             sample_rate,
             suffix_index_to_protein,
@@ -32,8 +31,8 @@ impl <'a> Searcher<'a> {
         let mut is_cond_or_equal = false;
         // match as long as possible
         while index_in_search_string < search_string.len()
-            && index < self.original_input_string.len()
-            && search_string[index_in_search_string] == self.original_input_string[index] {
+            && index < self.proteins.input_string.len()
+            && search_string[index_in_search_string] == self.proteins.input_string[index] {
             index += 1;
             index_in_search_string += 1;
         }
@@ -41,7 +40,7 @@ impl <'a> Searcher<'a> {
         if !search_string.is_empty()
             && (
             index_in_search_string == search_string.len()
-            || (index < self.original_input_string.len() && compare_fn(search_string[index_in_search_string] as usize, self.original_input_string[index] as usize))
+            || (index < self.proteins.input_string.len() && compare_fn(search_string[index_in_search_string] as usize, self.proteins.input_string[index] as usize))
         ) {
             is_cond_or_equal = true;
         }
@@ -161,7 +160,7 @@ impl <'a> Searcher<'a> {
                 // try all the partially matched suffixes
                 for sa_index in min_bound..max_bound {
                     let suffix = self.sa[sa_index] as usize;
-                    if suffix >= skip && unmatched_prefix == &self.original_input_string[suffix - skip..suffix] {
+                    if suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix] {
                         return true;
                     }
                 }
@@ -180,7 +179,7 @@ impl <'a> Searcher<'a> {
                 // try all the partially matched suffixes and store the matching suffixes in an array
                 for sa_index in min_bound..max_bound {
                     let suffix = self.sa[sa_index] as usize;
-                    if suffix >= skip && unmatched_prefix == &self.original_input_string[suffix - skip..suffix] {
+                    if suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix] {
                         matching_suffixes.push(suffix - skip);
                     }
                 }
@@ -188,9 +187,9 @@ impl <'a> Searcher<'a> {
         }
         let mut res = vec![];
         for suffix in matching_suffixes {
-            let protein_index = self.suffix_index_to_protein[suffix];
+            let protein_index = self.suffix_index_to_protein.suffix_to_protein(suffix as i64);
             if !protein_index.is_null() {
-                res.push(&self.proteins[protein_index as usize]);
+                res.push(&self.proteins.proteins[protein_index as usize]);
             }
         }
         res

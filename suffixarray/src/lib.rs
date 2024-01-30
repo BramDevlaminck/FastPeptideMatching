@@ -70,8 +70,6 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     let proteins = get_proteins_from_database_file(&args.database_file);
     // construct the sequence that will be used to build the tree
 
-    // let u8_text = proteins.input_string.into_bytes();
-
     let mut sa = libdivsufsort_rs::divsufsort64(&proteins.input_string).ok_or("Building suffix array failed")?;
 
     // build the right mapping index, use box to be able to store both types in this variable

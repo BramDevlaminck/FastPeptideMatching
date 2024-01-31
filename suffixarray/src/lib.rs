@@ -73,18 +73,17 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     let mut sa = libdivsufsort_rs::divsufsort64(&proteins.input_string).ok_or("Building suffix array failed")?;
     println!("SA constructed");
 
-    // make the SA sparse and decrease the vector size
-    let mut current_sampled_index = 0;
-    for i in 0..sa.len() {
-        let current_sa_val = sa[i];
-        if current_sa_val % args.sample_rate as i64 == 0 {
-            sa[current_sampled_index] = current_sa_val;
+    // make the SA sparse and decrease the vector size if we effectively sample (sample rate 1 == no sampling)
+    if args.sample_rate > 1 {
+        let mut current_sampled_index = 0;
+        for i in (0..sa.len()).step_by(args.sample_rate) {
+            sa[current_sampled_index] = sa[i];
             current_sampled_index += 1;
         }
+        // make shorter
+        sa.resize(current_sampled_index, 0);
+        println!("SA is sparse with sampling factor {}", args.sample_rate);
     }
-    // make shorter
-    sa.resize(current_sampled_index, 0);
-    println!("SA is sparse with sampling factor {}", args.sample_rate);
 
     if let Some(output) = &args.output {
         println!("storing index to file {}", output);

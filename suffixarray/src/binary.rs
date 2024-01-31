@@ -39,15 +39,16 @@ pub fn write_binary(suffix_array: &Vec<i64>, text: &Vec<u8>, name: &str) -> Resu
     // create the file
     let mut f = OpenOptions::new()
         .create(true)
-        .append(true)
+        .write(true)
+        .truncate(true) // if the file already exists, empty the file
         .open(name.to_owned() + "_sa.bin")
         .unwrap();
 
     // write 1 GiB at a time, to minimize extra used memory since we need to translate i64 to [u8; 8]
-    let one_GiB = 2usize.pow(30);
+    let gib = 2usize.pow(30);
     let sa_len = suffix_array.len();
-    for start_index in (0..sa_len).step_by(one_GiB/8) {
-        let end_index = min(start_index + one_GiB/8, sa_len);
+    for start_index in (0..sa_len).step_by(gib/8) {
+        let end_index = min(start_index + gib/8, sa_len);
         // TODO: remove unwrap and handle error
         f.write_all(&suffix_array[start_index..end_index].serialize()).unwrap();
     }
@@ -55,13 +56,14 @@ pub fn write_binary(suffix_array: &Vec<i64>, text: &Vec<u8>, name: &str) -> Resu
 
     let mut f = OpenOptions::new()
         .create(true)
-        .append(true)
+        .write(true)
+        .truncate(true)
         .open(name.to_owned() + "_text.bin")
         .unwrap();
 
     let text_len = text.len();
-    for start_index in (0..text_len).step_by(one_GiB) {
-        let end_index = min(start_index + one_GiB, text_len);
+    for start_index in (0..text_len).step_by(gib) {
+        let end_index = min(start_index + gib, text_len);
         // TODO: remove unwrap and handle error
         f.write_all(&text[start_index..end_index]).unwrap();
     }

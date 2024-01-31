@@ -120,15 +120,26 @@ fn execute_search(mut searcher: Searcher, proteins: &Proteins, args: &Arguments)
     let verbose = args.verbose;
     let mut verbose_output: Vec<String> = vec![];
     if let Some(search_file) = &args.search_file {
-        // File `search_file` must exist in the current path
-        if let Ok(lines) = read_lines(search_file) {
-            for line in lines.into_iter().flatten() {
-                handle_search_word(&mut searcher, proteins, line, mode, verbose, &mut verbose_output);
+        let mut total_time = 0.0;
+        for _ in 0..50 {
+            // File `search_file` must exist in the current path
+            if let Ok(lines) = read_lines(search_file) {
+                let start_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                for line in lines.into_iter().flatten() {
+                    handle_search_word(&mut searcher, proteins, line, mode, verbose, &mut verbose_output);
+                }
+                let end_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                total_time += end_ms - start_ms;
+            } else {
+                eprintln!("File {} could not be opened!", search_file);
+                std::process::exit(1);
             }
-        } else {
-            eprintln!("File {} could not be opened!", search_file);
-            std::process::exit(1);
         }
+        println!("{}", total_time / 50.0);
     } else {
         loop {
             print!("Input your search string: ");
@@ -190,22 +201,19 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
         verbose_output.push(format!("{};{};{}", found_total as u8, word.len(), avg));
     } else {
         match *search_mode {
-            SearchMode::Match => println!("{}", searcher.search_if_match(word.as_bytes())),
+            SearchMode::Match => {
+                let _res = searcher.search_if_match(word.as_bytes());
+            }
             SearchMode::MinMaxBound => {
-                let (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
-                println!("{found};{min_bound};{max_bound}");
+                let _res = searcher.search_bounds(word.as_bytes());
             }
             SearchMode::AllOccurrences => {
                 let results = searcher.search_protein(word.as_bytes());
-                println!("found {} matches", results.len());
-                results.into_iter()
-                    .for_each(|res| println!("* {}", proteins.get_sequence(res)));
+                let _res = results.into_iter()
+                    .map(|res| proteins.get_sequence(res));
             }
             SearchMode::TaxonId => {
-                match searcher.search_taxon_id(word.as_bytes()) {
-                    Some(taxon_id) => println!("{}", taxon_id),
-                    None => println!("/"),
-                }
+                let _res = searcher.search_taxon_id(word.as_bytes());
             }
         }
     }

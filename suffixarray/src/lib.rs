@@ -69,14 +69,9 @@ pub struct Arguments {
 pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     let proteins = get_proteins_from_database_file(&args.database_file);
     // construct the sequence that will be used to build the tree
-
+    println!("read all proteins");
     let mut sa = libdivsufsort_rs::divsufsort64(&proteins.input_string).ok_or("Building suffix array failed")?;
-
-    // build the right mapping index, use box to be able to store both types in this variable
-    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
-        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
-        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-    };
+    println!("SA constructed");
 
     // make the SA sparse and decrease the vector size
     let mut current_sampled_index = 0;
@@ -89,12 +84,23 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
     }
     // make shorter
     sa.resize(current_sampled_index, 0);
-
-    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+    println!("SA is sparse with sampling factor {}", args.sample_rate);
 
     if let Some(output) = &args.output {
-        write_binary(&sa, &proteins.input_string, output).unwrap()
+        println!("storing index to file {}", output);
+        write_binary(&sa, &proteins.input_string, output).unwrap();
+        println!("Index written away");
     }
+
+    // build the right mapping index, use box to be able to store both types in this variable
+    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
+        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
+        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+    };
+    println!("mapping built");
+
+    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+    println!("taxonomy calculator built");
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {

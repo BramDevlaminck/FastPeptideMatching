@@ -43,11 +43,11 @@ pub fn write_binary(suffix_array: &Vec<i64>, text: &Vec<u8>, name: &str) -> Resu
         .open(name.to_owned() + "_sa.bin")
         .unwrap();
 
-    // write 1 GiB at a time
-    let one_GiB = 1073741824;
+    // write 1 GiB at a time, to minimize extra used memory since we need to translate i64 to [u8; 8]
+    let one_GiB = 2usize.pow(30);
     let sa_len = suffix_array.len();
-    for start_index in (0..sa_len).step_by(one_GiB) {
-        let end_index = min(start_index + one_GiB, sa_len);
+    for start_index in (0..sa_len).step_by(one_GiB/8) {
+        let end_index = min(start_index + one_GiB/8, sa_len);
         // TODO: remove unwrap and handle error
         f.write_all(&suffix_array[start_index..end_index].serialize()).unwrap();
     }

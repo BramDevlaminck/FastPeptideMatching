@@ -371,6 +371,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 
 [[package]]
+name = "fid"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a44ef301a177937a9b78bb15d8faca11a858ede49ba28ff93eaaa687d4233556"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "flate2"
 version = "1.0.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -378,6 +387,26 @@ checksum = "46303f565772937ffe1d394a4fac6f411c6013172fadde9dcdb1e147a086940e"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+]
+
+[[package]]
+name = "fm-index"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9fc3f84043364aec4e26fca1db7729981ab717419b11eeb11d22212fd6eb927"
+dependencies = [
+ "fid",
+ "num-traits",
+ "serde",
+]
+
+[[package]]
+name = "fm-index-unipept"
+version = "0.1.0"
+dependencies = [
+ "clap 4.4.8",
+ "fm-index",
+ "tsv-utils",
 ]
 
 [[package]]

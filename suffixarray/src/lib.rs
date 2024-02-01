@@ -9,7 +9,7 @@ use get_size::GetSize;
 use tsv_utils::{get_proteins_from_database_file, Proteins, read_lines};
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 
-use crate::binary::write_binary;
+use crate::binary::{load_binary, write_binary};
 use crate::searcher::Searcher;
 use crate::suffix_to_protein_index::{DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle};
 
@@ -58,40 +58,56 @@ pub struct Arguments {
     output: Option<String>,
     /// The sample rate used on the suffix array (default value 1, which means every value in the SA is used)
     #[arg(long, default_value_t = 1)]
-    sample_rate: usize,
+    sample_rate: u8, // TODO: is u8 enough for a sample rate?
     /// Set the style used to map back from the suffix to the protein. 2 options <sparse> or <dense>. Dense is default
     /// Dense uses O(n) memory with n the size of the input text, and takes O(1) time to find the mapping
     /// Sparse uses O(m) memory with m the number of proteins, and takes O(log m) to find the mapping
     #[arg(long, value_enum, default_value_t = SuffixToProteinMappingStyle::Dense)]
     suffix_to_protein_mapping: SuffixToProteinMappingStyle,
+    #[arg(long)]
+    load_index: Option<String>,
 }
 
-pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
+pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     let proteins = get_proteins_from_database_file(&args.database_file);
     // construct the sequence that will be used to build the tree
     println!("read all proteins");
-    let mut sa = libdivsufsort_rs::divsufsort64(&proteins.input_string).ok_or("Building suffix array failed")?;
-    println!("SA constructed");
 
-    // make the SA sparse and decrease the vector size if we have sampling (== sampling_rate > 1)
-    if args.sample_rate > 1 {
-        let mut current_sampled_index = 0;
-        for i in 0..sa.len() {
-            let current_sa_val = sa[i];
-            if current_sa_val % args.sample_rate as i64 == 0 {
-                sa[current_sampled_index] = current_sa_val;
-                current_sampled_index += 1;
+    let sa = match args.load_index {
+        // load SA from file
+        Some(index_file_name) => {
+            let (sample_rate, sa) = load_binary(&index_file_name)?;
+            args.sample_rate = sample_rate;
+            sa
+        },
+        // build the SA
+        None => {
+            let mut sa = libdivsufsort_rs::divsufsort64(&proteins.input_string).ok_or("Building suffix array failed")?;
+            println!("SA constructed");
+
+            // make the SA sparse and decrease the vector size if we have sampling (== sampling_rate > 1)
+            if args.sample_rate > 1 {
+                let mut current_sampled_index = 0;
+                for i in 0..sa.len() {
+                    let current_sa_val = sa[i];
+                    if current_sa_val % args.sample_rate as i64 == 0 {
+                        sa[current_sampled_index] = current_sa_val;
+                        current_sampled_index += 1;
+                    }
+                }
+                // make shorter
+                sa.resize(current_sampled_index, 0);
+                println!("SA is sparse with sampling factor {}", args.sample_rate);
             }
+            sa
         }
-        // make shorter
-        sa.resize(current_sampled_index, 0);
-        println!("SA is sparse with sampling factor {}", args.sample_rate);
-    }
+    };
+
 
 
     if let Some(output) = &args.output {
         println!("storing index to file {}", output);
-        write_binary(&sa, &proteins.input_string, output).unwrap();
+        write_binary(args.sample_rate, &sa, &proteins.input_string, output).unwrap();
         println!("Index written away");
     }
 
@@ -167,7 +183,7 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
         Some(stripped) => String::from(stripped)
     }.to_uppercase();
     // words that are shorter than the sample rate are not searchable
-    if word.len() < searcher.sample_rate {
+    if word.len() < searcher.sample_rate as usize {
         if verbose.is_some() {
             verbose_output.push(format!("(word too short short for SA sample size);{};", word.len()));
         } else {

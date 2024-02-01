@@ -76,8 +76,9 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     let sa = match &args.load_index {
         // load SA from file
         Some(index_file_name) => {
-            let (sample_rate, sa) = load_binary(&index_file_name)?;
+            let (sample_rate, sa) = load_binary(index_file_name)?;
             args.sample_rate = sample_rate;
+            // TODO: some kind of security check that the loaded database file and SA match
             sa
         },
         // build the SA

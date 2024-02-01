@@ -1,7 +1,9 @@
 use std::cmp::min;
 use std::error::Error;
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, Read, Write};
+use std::io::{Read, Write};
+
+const ONE_GIB: usize = 2usize.pow(30);
 
 pub trait Serializable {
     fn serialize(&self) -> Vec<u8>;
@@ -42,10 +44,9 @@ pub fn write_binary(sample_rate: u8, suffix_array: &Vec<i64>, text: &Vec<u8>, na
     f.write_all(&[sample_rate])?; // write the sample rate as the first byte
 
     // write 1 GiB at a time, to minimize extra used memory since we need to translate i64 to [u8; 8]
-    let gib = 2usize.pow(30);
     let sa_len = suffix_array.len();
-    for start_index in (0..sa_len).step_by(gib/8) {
-        let end_index = min(start_index + gib/8, sa_len);
+    for start_index in (0..sa_len).step_by(ONE_GIB/8) {
+        let end_index = min(start_index + ONE_GIB/8, sa_len);
         f.write_all(&suffix_array[start_index..end_index].serialize())?;
     }
 
@@ -57,8 +58,8 @@ pub fn write_binary(sample_rate: u8, suffix_array: &Vec<i64>, text: &Vec<u8>, na
         .open(name.to_owned() + "_text.bin")?;
 
     let text_len = text.len();
-    for start_index in (0..text_len).step_by(gib) {
-        let end_index = min(start_index + gib, text_len);
+    for start_index in (0..text_len).step_by(ONE_GIB) {
+        let end_index = min(start_index + ONE_GIB, text_len);
         f.write_all(&text[start_index..end_index])?;
     }
 
@@ -67,9 +68,9 @@ pub fn write_binary(sample_rate: u8, suffix_array: &Vec<i64>, text: &Vec<u8>, na
 
 pub fn load_binary(name: &str) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
     // read the SA and deserialize it into a vec of i64
-    let sa_file = File::open(name.to_owned() + "_sa.bin")?;
-    let reader = BufReader::new(sa_file);
-    let (sample_rate, sa) = read_sa_file(reader)?;
+    let sa_file = File::open(name)?;
+    // let reader = BufReader::new(sa_file);
+    let (sample_rate, sa) = read_sa_file(&sa_file)?;
 
     // // read the text file
     // let mut text_file = OpenOptions::new()
@@ -84,19 +85,17 @@ pub fn load_binary(name: &str) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
     Ok((sample_rate, sa))
 }
 
-fn read_sa_file<R: Read>(mut reader: R) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
+fn read_sa_file(mut file: &File) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
     let mut sample_rate_buffer = [0_u8; 1]; // TODO: if sample rate should be bigger than a u8, change this buffer size!
-    let num_read_bytes = reader.read(&mut sample_rate_buffer)?;
-    if num_read_bytes != 1 {
-        panic!("Sample rate could not be read!")
-    }
+    file.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
     let sample_rate = sample_rate_buffer[0];
 
     // this buffer is 1GiB big
-    let mut buffer = [0_u8; 2usize.pow(30)];
     let mut sa = vec![];
     loop {
-        let count = reader.read(&mut buffer)?;
+        let mut buffer = vec![];
+        // use take in combination with read_to_end to ensure that the buffer will be completely filled (except when the file is smaller than the buffer)
+        let count = file.take(ONE_GIB as u64).read_to_end(&mut buffer)?;
         if count == 0 {
             break;
         }

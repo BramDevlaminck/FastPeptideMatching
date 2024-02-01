@@ -73,7 +73,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     // construct the sequence that will be used to build the tree
     println!("read all proteins");
 
-    let sa = match args.load_index {
+    let sa = match &args.load_index {
         // load SA from file
         Some(index_file_name) => {
             let (sample_rate, sa) = load_binary(&index_file_name)?;

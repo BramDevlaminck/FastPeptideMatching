@@ -7,7 +7,7 @@ use crate::suffix_to_protein_index::SuffixToProteinIndex;
 
 pub struct Searcher<'a> {
     sa: &'a Vec<i64>,
-    pub sample_rate: usize,
+    pub sample_rate: u8,
     suffix_index_to_protein: &'a dyn SuffixToProteinIndex,
     proteins: &'a Proteins,
     taxon_id_calculator: &'a TaxonIdCalculator
@@ -15,7 +15,7 @@ pub struct Searcher<'a> {
 
 impl <'a> Searcher<'a> {
 
-    pub fn new(sa: &'a Vec<i64>, sample_rate: usize, suffix_index_to_protein: &'a dyn SuffixToProteinIndex, proteins: &'a Proteins, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
+    pub fn new(sa: &'a Vec<i64>, sample_rate: u8, suffix_index_to_protein: &'a dyn SuffixToProteinIndex, proteins: &'a Proteins, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
         Self {
             sa,
             sample_rate,
@@ -152,7 +152,7 @@ impl <'a> Searcher<'a> {
             return self.binary_search_match(search_string)
         }
 
-        for skip in 0..self.sample_rate {
+        for skip in 0..self.sample_rate as usize {
             let (found, min_bound, max_bound) = self.search_bounds(&search_string[skip..]);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
             if found {
@@ -171,7 +171,7 @@ impl <'a> Searcher<'a> {
 
     pub fn search_protein(&self, search_string: &[u8]) -> Vec<&Protein> {
         let mut matching_suffixes = vec![];
-        for skip in 0..self.sample_rate {
+        for skip in 0..self.sample_rate as usize {
             let (found, min_bound, max_bound) = self.search_bounds(&search_string[skip..]);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
             if found {

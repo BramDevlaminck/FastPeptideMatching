@@ -113,13 +113,6 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         println!("Index written away");
     }
 
-    // build the right mapping index, use box to be able to store both types in this variable
-    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
-        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
-        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-    };
-    println!("mapping built");
-
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {
         return Ok(());
@@ -127,6 +120,13 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         eprintln!("search mode expected!");
         std::process::exit(1);
     }
+
+    // build the right mapping index, use box to be able to store both types in this variable
+    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
+        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
+        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+    };
+    println!("mapping built");
 
     let searcher = Searcher::new(&sa, args.sample_rate, suffix_index_to_protein.as_ref(), &proteins, &taxon_id_calculator);
     execute_search(searcher, &proteins, &args);

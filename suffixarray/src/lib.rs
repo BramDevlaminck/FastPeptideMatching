@@ -69,7 +69,10 @@ pub struct Arguments {
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
-    let proteins = get_proteins_from_database_file(&args.database_file);
+    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+    println!("taxonomy calculator built");
+
+    let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator);
     // construct the sequence that will be used to build the tree
     println!("read all proteins");
 
@@ -104,8 +107,6 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         }
     };
 
-
-
     if let Some(output) = &args.output {
         println!("storing index to file {}", output);
         write_binary(args.sample_rate, &sa, &proteins.input_string, output).unwrap();
@@ -118,9 +119,6 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
     };
     println!("mapping built");
-
-    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
-    println!("taxonomy calculator built");
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {

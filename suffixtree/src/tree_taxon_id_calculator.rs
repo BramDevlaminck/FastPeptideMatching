@@ -1,6 +1,6 @@
 use umgap::taxon::TaxonId;
 
-use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
+use tsv_utils::taxon_id_calculator::{TaxonIdCalculator, TaxonIdVerifier};
 
 use crate::Protein;
 use crate::tree::{NodeIndex, Nullable, Tree};
@@ -134,6 +134,12 @@ impl TreeTaxonIdCalculator {
     /// Calculates the aggregate of a vector containing TaxonIds
     fn get_aggregate(&self, ids: Vec<TaxonId>) -> TaxonId {
         self.taxon_id_calculator.get_aggregate(ids)
+    }
+}
+
+impl TaxonIdVerifier for TreeTaxonIdCalculator {
+    fn taxon_id_exists(&self, id: TaxonId) -> bool {
+        self.taxon_id_calculator.taxon_id_exists(id)
     }
 }
 

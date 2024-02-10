@@ -4,8 +4,8 @@ use std::fs::File;
 use std::io;
 use std::io::BufRead;
 use std::path::Path;
-use std::str::Utf8Error;
 use umgap::taxon::TaxonId;
+use crate::taxon_id_calculator::{TaxonIdVerifier};
 
 // END_CHARACTER should ALWAYS be lexicographically than SEPARATION_CHARACTER
 // otherwise the building of the suffix array will not happen correctly
@@ -42,7 +42,7 @@ pub struct Protein {
 }
 
 /// Parse the given database tsv file into a Vector of Proteins with the data from the tsv file
-pub fn get_proteins_from_database_file(database_file: &str) -> Proteins {
+pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator: &dyn TaxonIdVerifier) -> Proteins {
     let mut input_string: String = "".to_string();
     let mut proteins: Vec<Protein> = vec![];
     let mut begin_index: usize = 0;
@@ -50,6 +50,12 @@ pub fn get_proteins_from_database_file(database_file: &str) -> Proteins {
         for line in lines.into_iter().flatten() {
             let [_, _, protein_id_str, _, _, protein_sequence]: [&str; 6] = line.splitn(6, '\t').collect::<Vec<&str>>().try_into().unwrap();
             let protein_id_as_taxon_id = protein_id_str.parse::<TaxonId>().expect("Could not parse id of protein to usize!");
+            // if the taxon ID is not a valid ID in our NCBI taxonomy, skip this protein
+            if !taxon_id_calculator.taxon_id_exists(protein_id_as_taxon_id) {
+                eprintln!("Skipped protein with taxon id {}!", protein_id_as_taxon_id);
+                continue;
+            }
+
             if begin_index != 0 {
                 input_string.push(SEPARATION_CHARACTER as char);
             }

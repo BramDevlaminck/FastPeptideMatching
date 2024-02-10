@@ -115,14 +115,15 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
 
 /// Main run function that executes all the logic with the received arguments
 pub fn run(args: Arguments) {
-    let proteins = get_proteins_from_database_file(&args.database_file);
+    let tree_taxon_id_calculator = TreeTaxonIdCalculator::new(&args.taxonomy);
+
+    let proteins = get_proteins_from_database_file(&args.database_file, &tree_taxon_id_calculator);
     // construct the sequence that will be used to build the tree
     let data = &proteins.input_string;
 
     // build the tree
     let mut tree = Tree::new(data, UkkonenBuilder::new());
     // fill in the Taxon Ids in the tree using the LCA implementations from UMGAP
-    let tree_taxon_id_calculator = TreeTaxonIdCalculator::new(&args.taxonomy);
     tree_taxon_id_calculator.calculate_taxon_ids(&mut tree, &proteins.proteins);
 
     // print the taxon ids of the tree if flag set

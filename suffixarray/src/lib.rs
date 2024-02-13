@@ -102,8 +102,8 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         // build the SA
         None => {
             let mut sa = match &args.construction_algorithm {
-                SAConstructionAlgorithm::LibDivSufSort => libsais64_rs::sais64(&proteins.input_string),
-                SAConstructionAlgorithm::LibSais => libdivsufsort_rs::divsufsort64(&proteins.input_string)
+                SAConstructionAlgorithm::LibSais => libsais64_rs::sais64(&proteins.input_string),
+                SAConstructionAlgorithm::LibDivSufSort => libdivsufsort_rs::divsufsort64(&proteins.input_string)
             }.ok_or("Building suffix array failed")?;
             println!("SA constructed");
 

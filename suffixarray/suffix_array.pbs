@@ -32,7 +32,15 @@ module swap cluster/gallade
 folder=""
 prefix="$VSC_DATA_VO/bram/"
 
+# load Rust
+module load Rust/1.75.0-GCCcore-12.3.0
+
 # go to current working dir and execute
 cd $PBS_O_WORKDIR
+
+# compile
+cargo build --release
+
+# execute
 ./suffixarray -d "$prefix""$folder"uniprotKB_protein_database.tsv -t "$prefix"taxons.tsv --build-only --suffix-to-protein-mapping sparse -o "$prefix"uniprot_indexed
 # ./suffixarray -d "$prefix""$folder"protein_database.tsv -s "$prefix""$folder""$search_file" -t "$prefix"taxons.tsv -m all-occurrences

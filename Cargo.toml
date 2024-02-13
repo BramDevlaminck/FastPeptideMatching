@@ -4,5 +4,6 @@ resolver = "2"
 members = [
     "suffixtree",
     "suffixarray",
-    "tsv-utils"
+    "tsv-utils",
+    "libsais64-rs"
 ]

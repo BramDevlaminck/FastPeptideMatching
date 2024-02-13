@@ -1,13 +1,41 @@
 use std::env;
 use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, ExitStatus};
+
+#[derive(Debug)]
+struct CompileError<'a> {
+    command: &'a str,
+    exit_code: Option<i32>,
+}
+
+impl<'a> Display for CompileError<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let end_text = if let Some(code) = self.exit_code {
+            format!("with exit code {}", code)
+        } else {
+            "without exit code".to_string()
+        };
+        let text = format!("Command with name `{}` failed {}", self.command, end_text);
+        write!(f, "{}", text)
+    }
+}
+
+impl<'a> Error for CompileError<'a> {}
+
+fn exit_status_to_result(name: &str, exit_status: ExitStatus) -> Result<(), CompileError> {
+    match exit_status.success() {
+        true => Ok(()),
+        false => Err(CompileError { command: name, exit_code: exit_status.code() }),
+    }
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     // compile the c library
-    Command::new("cmake").args(["-DCMAKE_BUILD_TYPE=\"Release\"", "libsais", "-Blibsais"]).status()?;
-    Command::new("make").args(["-C", "libsais"]).status()?;
-    Command::new("mv").args(["liblibsais.a", "libsais"]).status()?;
+    exit_status_to_result("cmake", Command::new("cmake").args(["-DCMAKE_BUILD_TYPE=\"Release\"", "libsais", "-Blibsais"]).status()?)?;
+    exit_status_to_result("make", Command::new("make").args(["-C", "libsais"]).status()?)?;
+
 
     // link the c libsais library to rust
     println!("cargo:rustc-link-search=native=libsais64-rs/libsais");

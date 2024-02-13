@@ -188,16 +188,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cdivsufsort"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edefce019197609da416762da75bb000bbd2224b2d89a7e722c2296cbff79b8c"
-dependencies = [
- "cc",
- "sacabase",
-]
-
-[[package]]
 name = "cexpr"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -370,15 +360,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5efa2b3d7902f4b634a20cae3c9c4e6209dc4779feb6863329607560143efa70"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "divsufsort"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e57e36c45fe0b4ef9bc690e53cce2f46dc193f7be3bc93bb7d23ca6dc1be820"
-dependencies = [
- "sacabase",
 ]
 
 [[package]]
@@ -905,15 +886,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad4cc8da4ef723ed60bced201181d83791ad433213d8c24efffda1eec85d741"
 
 [[package]]
-name = "sacabase"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9883fc3d6ce3d78bb54d908602f8bc1f7b5f983afe601dabe083009d86267a84"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "schannel"
 version = "0.1.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1046,9 +1018,7 @@ dependencies = [
 name = "suffixarray"
 version = "0.1.0"
 dependencies = [
- "cdivsufsort",
  "clap 4.4.8",
- "divsufsort",
  "get-size",
  "libdivsufsort-rs",
  "libsais64-rs",

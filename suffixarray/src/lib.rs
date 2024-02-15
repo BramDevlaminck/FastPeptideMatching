@@ -69,25 +69,32 @@ pub struct Arguments {
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
-    let start = SystemTime::now()
+    let start_reading_proteins_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+        .expect("Time went backwards").as_nanos() as f64 * 1e-6;    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
     println!("taxonomy calculator built");
 
     let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator);
+
     // construct the sequence that will be used to build the tree
     println!("read all proteins");
     let current = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-    println!("Time spent for reading: {}", current - start);
+    println!("Time spent for reading: {}", current - start_reading_proteins_ms);
 
     let sa = match &args.load_index {
         // load SA from file
         Some(index_file_name) => {
+            let start_loading_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
             let (sample_rate, sa) = load_binary(index_file_name)?;
             args.sample_rate = sample_rate;
+            let end_loading_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+            println!("Loading the SA took {} ms and loading the proteins + SA took {} ms", end_loading_ms - start_loading_ms, end_loading_ms - start_reading_proteins_ms);
             // TODO: some kind of security check that the loaded database file and SA match
             sa
         },

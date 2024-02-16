@@ -12,8 +12,8 @@
 
 # define requested memory, cpu resources and email notifications
 #PBS -m abe
-#PBS -l walltime=01:00:00
-#PBS -l mem=400gb
+#PBS -l walltime=00:45:00
+#PBS -l mem=350gb
 # ask for 1 node, 1 cpu (not more needed since we don't have parallelism)
 #PBS -l nodes=1:ppn=1
 #PBS -N uniprot_search_sparse3_occurrences_count

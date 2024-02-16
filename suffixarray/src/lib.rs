@@ -81,16 +81,16 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards").as_nanos() as f64 * 1e-6;
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
-    println!("taxonomy calculator built");
+    // println!("taxonomy calculator built");
 
     let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator);
 
     // construct the sequence that will be used to build the tree
-    println!("read all proteins");
+    // println!("read all proteins");
     let current = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-    println!("Time spent for reading: {}", current - start_reading_proteins_ms);
+    // println!("Time spent for reading: {}", current - start_reading_proteins_ms);
 
     let sa = match &args.load_index {
         // load SA from file
@@ -103,7 +103,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
             let end_loading_ms = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-            println!("Loading the SA took {} ms and loading the proteins + SA took {} ms", end_loading_ms - start_loading_ms, end_loading_ms - start_reading_proteins_ms);
+            // println!("Loading the SA took {} ms and loading the proteins + SA took {} ms", end_loading_ms - start_loading_ms, end_loading_ms - start_reading_proteins_ms);
             // TODO: some kind of security check that the loaded database file and SA match
             sa
         },
@@ -113,7 +113,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
                 SAConstructionAlgorithm::LibSais => libsais64_rs::sais64(&proteins.input_string),
                 SAConstructionAlgorithm::LibDivSufSort => libdivsufsort_rs::divsufsort64(&proteins.input_string)
             }.ok_or("Building suffix array failed")?;
-            println!("SA constructed");
+            // println!("SA constructed");
 
             // make the SA sparse and decrease the vector size if we have sampling (== sampling_rate > 1)
             if args.sample_rate > 1 {
@@ -127,16 +127,16 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
                 }
                 // make shorter
                 sa.resize(current_sampled_index, 0);
-                println!("SA is sparse with sampling factor {}", args.sample_rate);
+                // println!("SA is sparse with sampling factor {}", args.sample_rate);
             }
             sa
         }
     };
 
     if let Some(output) = &args.output {
-        println!("storing index to file {}", output);
+        // println!("storing index to file {}", output);
         write_binary(args.sample_rate, &sa, &proteins.input_string, output).unwrap();
-        println!("Index written away");
+        // println!("Index written away");
     }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
@@ -152,7 +152,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
         SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
     };
-    println!("mapping built");
+    // println!("mapping built");
 
     let searcher = Searcher::new(&sa, args.sample_rate, suffix_index_to_protein.as_ref(), &proteins, &taxon_id_calculator);
     execute_search(searcher, &proteins, &args);
@@ -167,7 +167,7 @@ fn execute_search(mut searcher: Searcher, proteins: &Proteins, args: &Arguments)
     if let Some(search_file) = &args.search_file {
         // File `search_file` must exist in the current path
         if let Ok(lines) = read_lines(search_file) {
-            for line in lines.into_iter().flatten() {
+            for line in lines.into_iter().map_while(Result::ok) {
                 handle_search_word(&mut searcher, proteins, line, mode, verbose, &mut verbose_output);
             }
         } else {
@@ -237,8 +237,23 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
         match *search_mode {
             SearchMode::Match => println!("{}", searcher.search_if_match(word.as_bytes())),
             SearchMode::MinMaxBound => {
-                let (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
-                println!("{found};{min_bound};{max_bound}");
+                let mut found= false;
+                let mut min_bound = 0;
+                let mut max_bound= 0;
+                let mut total_time = 0.0;
+                for _ in 0..3 {
+                    let start_time = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                    (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
+                    let end_time = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                    total_time += end_time - start_time;
+                }
+                let time_spent_searching = total_time/3.0;
+
+                println!("{found};{min_bound};{max_bound};{time_spent_searching}");
             }
             SearchMode::AllOccurrences => {
                 let results = searcher.search_protein(word.as_bytes());

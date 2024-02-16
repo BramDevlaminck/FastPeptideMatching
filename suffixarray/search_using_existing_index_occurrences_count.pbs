@@ -47,4 +47,4 @@ prefix="$VSC_DATA_VO/bram/"
 
 # go to current working dir and execute
 cd $PBS_O_WORKDIR
-./suffixarray -d "$prefix""$folder"uniprotKB_protein_database.tsv --load-index "$prefix""$folder"uniprot_indexed_sparse3_sa.bin --suffix-to-protein-mapping sparse -t "$prefix"taxons.tsv -s "$search_prefix""$search_folder""$search_file" -m min-max-bound
+./suffixarray -d "$prefix""$folder"uniprotKB_protein_database.tsv --load-index "$prefix""$folder"uniprot_indexed_sparse3_sa.bin --suffix-to-protein-mapping sparse -t "$prefix"taxons.tsv -s "$search_prefix""$search_folder""$search_file" -m all-occurrences

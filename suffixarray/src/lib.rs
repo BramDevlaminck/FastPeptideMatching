@@ -30,6 +30,12 @@ pub enum SearchMode {
     TaxonId,
 }
 
+#[derive(ValueEnum, Clone, Debug, PartialEq)]
+pub enum SAConstructionAlgorithm {
+    LibDivSufSort,
+    LibSais,
+}
+
 #[derive(Parser, Debug)]
 pub struct Arguments {
     /// File with the proteins used to build the suffix tree. All the proteins are expected to be concatenated using a `#`.
@@ -66,24 +72,47 @@ pub struct Arguments {
     suffix_to_protein_mapping: SuffixToProteinMappingStyle,
     #[arg(long)]
     load_index: Option<String>,
+    #[arg(short, long, value_enum, default_value_t = SAConstructionAlgorithm::LibSais)]
+    construction_algorithm: SAConstructionAlgorithm
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
-    let proteins = get_proteins_from_database_file(&args.database_file);
+    let start_reading_proteins_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+    println!("taxonomy calculator built");
+
+    let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator);
+
     // construct the sequence that will be used to build the tree
     println!("read all proteins");
+    let current = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+    println!("Time spent for reading: {}", current - start_reading_proteins_ms);
 
     let sa = match &args.load_index {
         // load SA from file
         Some(index_file_name) => {
+            let start_loading_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
             let (sample_rate, sa) = load_binary(index_file_name)?;
             args.sample_rate = sample_rate;
+            let end_loading_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+            println!("Loading the SA took {} ms and loading the proteins + SA took {} ms", end_loading_ms - start_loading_ms, end_loading_ms - start_reading_proteins_ms);
             // TODO: some kind of security check that the loaded database file and SA match
             sa
         },
         // build the SA
         None => {
-            let mut sa = libdivsufsort_rs::divsufsort64(&proteins.input_string).ok_or("Building suffix array failed")?;
+            let mut sa = match &args.construction_algorithm {
+                SAConstructionAlgorithm::LibSais => libsais64_rs::sais64(&proteins.input_string),
+                SAConstructionAlgorithm::LibDivSufSort => libdivsufsort_rs::divsufsort64(&proteins.input_string)
+            }.ok_or("Building suffix array failed")?;
             println!("SA constructed");
 
             // make the SA sparse and decrease the vector size if we have sampling (== sampling_rate > 1)
@@ -104,23 +133,11 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         }
     };
 
-
-
     if let Some(output) = &args.output {
         println!("storing index to file {}", output);
         write_binary(args.sample_rate, &sa, &proteins.input_string, output).unwrap();
         println!("Index written away");
     }
-
-    // build the right mapping index, use box to be able to store both types in this variable
-    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
-        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
-        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-    };
-    println!("mapping built");
-
-    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
-    println!("taxonomy calculator built");
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {
@@ -129,6 +146,13 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         eprintln!("search mode expected!");
         std::process::exit(1);
     }
+
+    // build the right mapping index, use box to be able to store both types in this variable
+    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
+        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
+        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+    };
+    println!("mapping built");
 
     let searcher = Searcher::new(&sa, args.sample_rate, suffix_index_to_protein.as_ref(), &proteins, &taxon_id_calculator);
     execute_search(searcher, &proteins, &args);

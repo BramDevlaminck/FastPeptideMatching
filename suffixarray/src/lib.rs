@@ -79,7 +79,8 @@ pub struct Arguments {
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     let start_reading_proteins_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards").as_nanos() as f64 * 1e-6;    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
     println!("taxonomy calculator built");
 
     let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator);

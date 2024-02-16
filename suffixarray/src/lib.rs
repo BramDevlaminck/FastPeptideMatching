@@ -252,14 +252,25 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
                     total_time += end_time - start_time;
                 }
                 let time_spent_searching = total_time/3.0;
-
                 println!("{found};{min_bound};{max_bound};{time_spent_searching}");
             }
             SearchMode::AllOccurrences => {
-                let results = searcher.search_protein(word.as_bytes());
-                println!("found {} matches", results.len());
-                results.into_iter()
-                    .for_each(|res| println!("* {}", proteins.get_sequence(res)));
+                let mut results = vec![];
+                let mut total_time = 0.0;
+                for _ in 0..3 {
+                    let start_time = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                    results = searcher.search_protein(word.as_bytes());
+
+                    let end_time = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                    total_time += end_time - start_time;
+                }
+                let time_spent_searching = total_time/3.0;
+                let number_of_proteins = results.len();
+                println!("{number_of_proteins};{time_spent_searching}");
             }
             SearchMode::TaxonId => {
                 match searcher.search_taxon_id(word.as_bytes()) {

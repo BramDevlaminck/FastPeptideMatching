@@ -270,7 +270,8 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
                 }
                 let time_spent_searching = total_time/3.0;
                 let number_of_proteins = results.len();
-                println!("{number_of_proteins};{time_spent_searching}");
+                let peptide_length = word.len();
+                println!("{peptide_length};{number_of_proteins};{time_spent_searching}");
             }
             SearchMode::TaxonId => {
                 match searcher.search_taxon_id(word.as_bytes()) {

@@ -1,0 +1,47 @@
+#!/bin/bash
+
+#########################################################################################################
+### This script is designed to run on the Ghent university HPC                                        ###
+###                                                                                                   ###
+### how to use:                                                                                       ###
+### 1) load the rust module Rust/1.75.0-GCCcore-12.3.0 with `module load Rust/1.75.0-GCCcore-12.3.0`  ###
+### 2) compile the code on the login node using `cargo build --release`                               ###
+### 3) navigate the to folder of the binary (in `target/release`)                                     ###
+### 4) submit the job to the queue with `qsub search_using_existing_index.pbs`                        ###
+#########################################################################################################
+
+# define requested memory, cpu resources and email notifications
+#PBS -m abe
+#PBS -l walltime=01:00:00
+#PBS -l mem=400gb
+# ask for 1 node, 1 cpu (not more needed since we don't have parallelism)
+#PBS -l nodes=1:ppn=1
+#PBS -N uniprot_search_sparse3_bound
+
+# define output and error files
+#PBS -o stdout.$PBS_JOBID
+#PBS -e stderr.$PBS_JOBID
+
+# go to cluster with high memory
+module swap cluster/gallade
+
+# load Rust
+module load Rust/1.75.0-GCCcore-12.3.0
+module load Clang/16.0.6-GCCcore-12.3.0 # needed to build the bindings from Rust to C
+
+# go to current working dir
+cd $PBS_O_WORKDIR
+
+# compile
+cargo build --release
+
+search_folder="swissprot_var1/"
+search_prefix="$VSC_DATA/BenchmarkData/"
+search_file="search_file_no_mch.tsv"
+
+folder=""
+prefix="$VSC_DATA_VO/bram/"
+
+# go to current working dir and execute
+cd $PBS_O_WORKDIR
+./suffixarray -d "$prefix""$folder"uniprotKB_protein_database.tsv --load-index "$prefix""$folder"uniprot_indexed_sparse3_sa.bin --suffix-to-protein-mapping sparse -t "$prefix"taxons.tsv -s "$search_prefix""$search_folder""$search_file" -m min-max-bound

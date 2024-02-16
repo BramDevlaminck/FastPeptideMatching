@@ -30,6 +30,12 @@ pub enum SearchMode {
     TaxonId,
 }
 
+#[derive(ValueEnum, Clone, Debug, PartialEq)]
+pub enum SAConstructionAlgorithm {
+    LibDivSufSort,
+    LibSais,
+}
+
 #[derive(Parser, Debug)]
 pub struct Arguments {
     /// File with the proteins used to build the suffix tree. All the proteins are expected to be concatenated using a `#`.
@@ -66,6 +72,8 @@ pub struct Arguments {
     suffix_to_protein_mapping: SuffixToProteinMappingStyle,
     #[arg(long)]
     load_index: Option<String>,
+    #[arg(short, long, value_enum, default_value_t = SAConstructionAlgorithm::LibSais)]
+    construction_algorithm: SAConstructionAlgorithm
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -100,7 +108,10 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         },
         // build the SA
         None => {
-            let mut sa = libdivsufsort_rs::divsufsort64(&proteins.input_string).ok_or("Building suffix array failed")?;
+            let mut sa = match &args.construction_algorithm {
+                SAConstructionAlgorithm::LibSais => libsais64_rs::sais64(&proteins.input_string),
+                SAConstructionAlgorithm::LibDivSufSort => libdivsufsort_rs::divsufsort64(&proteins.input_string)
+            }.ok_or("Building suffix array failed")?;
             println!("SA constructed");
 
             // make the SA sparse and decrease the vector size if we have sampling (== sampling_rate > 1)

@@ -274,10 +274,33 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
                 println!("{peptide_length};{number_of_proteins};{time_spent_searching}");
             }
             SearchMode::TaxonId => {
-                match searcher.search_taxon_id(word.as_bytes()) {
-                    Some(taxon_id) => println!("{}", taxon_id),
-                    None => println!("/"),
+                let mut result = None;
+                let mut total_time = 0.0;
+                // TODO: this is a cut-off based on the length of the peptide,
+                //  but we should also test to cut-off based from the number of matches the all-occurrences part of the calculation has
+                //  (e.g. return root whenever there are more than 100000 matching proteins)
+                if word.len() > 5 {
+                    for _ in 0..3 {
+                        let start_time = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                        result = searcher.search_taxon_id(word.as_bytes());
+
+                        let end_time = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+                        total_time += end_time - start_time;
+                    }
+                    let taxon_id = if let Some(id) = result {
+                        format!("{id}")
+                    } else {
+                        "/".to_string()
+                    };
+                    println!("{};{};{}", word.len(), taxon_id, total_time / 3.0);
+                } else {
+                    println!("{};;", word.len())
                 }
+
             }
         }
     }

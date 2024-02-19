@@ -167,9 +167,16 @@ fn execute_search(mut searcher: Searcher, proteins: &Proteins, args: &Arguments)
     if let Some(search_file) = &args.search_file {
         // File `search_file` must exist in the current path
         if let Ok(lines) = read_lines(search_file) {
+            let start_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
             for line in lines.into_iter().map_while(Result::ok) {
                 handle_search_word(&mut searcher, proteins, line, mode, verbose, &mut verbose_output);
             }
+            let end_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+            eprintln!("Spend {} ms to search the whole file", end_time - start_time);
         } else {
             eprintln!("File {} could not be opened!", search_file);
             std::process::exit(1);

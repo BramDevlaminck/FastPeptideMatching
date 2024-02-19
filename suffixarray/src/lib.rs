@@ -289,7 +289,7 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
                         .expect("Time went backwards").as_nanos() as f64 * 1e-6;
                     let max_matches = 10000;
                     let suffixes = searcher.search_matching_suffixes(word.as_bytes(), 10000);
-                    if suffixes.len() == max_matches {
+                    if suffixes.len() >= max_matches {
                         result = Some(1);
                     } else {
                         let proteins = searcher.retrieve_proteins(&suffixes);

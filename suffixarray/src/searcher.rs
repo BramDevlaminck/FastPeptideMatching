@@ -170,6 +170,7 @@ impl <'a> Searcher<'a> {
     }
 
     /// Search all the suffixes that search string matches with
+    #[inline]
     pub fn search_matching_suffixes(&self, search_string: &[u8], max_matches: usize) -> Vec<i64> {
         let mut matching_suffixes: Vec<i64> = vec![];
         let mut skip: usize = 0;
@@ -181,7 +182,8 @@ impl <'a> Searcher<'a> {
                 // try all the partially matched suffixes and store the matching suffixes in an array
                 for sa_index in min_bound..max_bound {
                     let suffix = self.sa[sa_index] as usize;
-                    if suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix] {
+                    // if skip is 0, then we already checked the complete match during bound search, otherwise check if the skipped part also matches
+                    if skip == 0 || (suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix]) {
                         matching_suffixes.push((suffix - skip) as i64);
                     }
                 }
@@ -192,6 +194,7 @@ impl <'a> Searcher<'a> {
     }
 
     /// get all the proteins matching with the given suffixes
+    #[inline]
     pub fn retrieve_proteins(&self, suffixes: &Vec<i64>) -> Vec<&Protein> {
         let mut res = vec![];
         for &suffix in suffixes {
@@ -209,9 +212,9 @@ impl <'a> Searcher<'a> {
         self.retrieve_proteins(&matching_suffixes)
     }
 
-
-    pub fn retrieve_taxon_id(&self, proteins: &Vec<&Protein>) -> Option<TaxonId> {
-        let taxon_ids: Vec<TaxonId> = proteins.into_iter().map(|prot| prot.id).collect();
+    #[inline]
+    pub fn retrieve_taxon_id(&self, proteins: &[&Protein]) -> Option<TaxonId> {
+        let taxon_ids: Vec<TaxonId> = proteins.iter().map(|prot| prot.id).collect();
         match taxon_ids.is_empty() {
             true => None,
             false => Some(self.taxon_id_calculator.snap_taxon_id(self.taxon_id_calculator.get_aggregate(taxon_ids)))

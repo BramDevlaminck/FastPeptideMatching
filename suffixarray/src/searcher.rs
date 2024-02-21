@@ -179,13 +179,15 @@ impl <'a> Searcher<'a> {
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
             if found {
                 let unmatched_prefix = &search_string[..skip];
-                // try all the partially matched suffixes and store the matching suffixes in an array
-                for sa_index in min_bound..max_bound {
+                // try all the partially matched suffixes and store the matching suffixes in an array (stop when our max number of matches is reached)
+                let mut sa_index = min_bound;
+                while sa_index < max_bound && matching_suffixes.len() < max_matches {
                     let suffix = self.sa[sa_index] as usize;
                     // if skip is 0, then we already checked the complete match during bound search, otherwise check if the skipped part also matches
                     if skip == 0 || (suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix]) {
                         matching_suffixes.push((suffix - skip) as i64);
                     }
+                    sa_index += 1;
                 }
             }
             skip += 1;

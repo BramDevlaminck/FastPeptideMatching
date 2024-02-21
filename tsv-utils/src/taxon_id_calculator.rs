@@ -1,4 +1,4 @@
-use umgap::{agg, rmq::mix::MixCalculator, taxon};
+use umgap::{agg, rmq, rmq::mix::MixCalculator, taxon};
 use umgap::agg::Aggregator;
 use umgap::taxon::{TaxonId, TaxonList, TaxonTree};
 pub struct TaxonIdCalculator {
@@ -20,7 +20,9 @@ impl TaxonIdCalculator {
         let by_id = TaxonList::new(taxons);
         let snapping = taxon_tree.snapping(&by_id, true);
 
-        let aggregator = MixCalculator::new(taxon_tree, 1.0);
+        // let aggregator = MixCalculator::new(taxon_tree, 1.0);
+        let aggregator = rmq::lca::LCACalculator::new(taxon_tree);
+
 
         Box::new(Self {
             snapping,

@@ -7,7 +7,7 @@ use clap::{arg, Parser, ValueEnum};
 use get_size::GetSize;
 
 use tsv_utils::{get_proteins_from_database_file, Proteins, read_lines};
-use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
+use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 
 use crate::binary::{load_binary, write_binary};
 use crate::searcher::Searcher;
@@ -80,7 +80,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     let start_reading_proteins_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy, AggregationMethod::LcaStar);
     // println!("taxonomy calculator built");
 
     let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator);

@@ -1,4 +1,4 @@
-use umgap::{agg, rmq, rmq::mix::MixCalculator, taxon};
+use umgap::{agg, rmq, taxon};
 use umgap::agg::Aggregator;
 use umgap::taxon::{TaxonId, TaxonList, TaxonTree};
 pub struct TaxonIdCalculator {
@@ -13,20 +13,26 @@ pub trait TaxonIdVerifier {
 
 }
 
+pub enum AggregationMethod {
+    Lca,
+    LcaStar
+}
+
 impl TaxonIdCalculator {
-    pub fn new(ncbi_taxonomy_fasta_file: &str) -> Box<Self> {
+    pub fn new(ncbi_taxonomy_fasta_file: &str, aggregation_method: AggregationMethod) -> Box<Self> {
         let taxons = taxon::read_taxa_file(ncbi_taxonomy_fasta_file).unwrap();
         let taxon_tree = TaxonTree::new(&taxons);
         let by_id = TaxonList::new(taxons);
         let snapping = taxon_tree.snapping(&by_id, true);
-
-        // let aggregator = MixCalculator::new(taxon_tree, 1.0);
-        let aggregator = rmq::lca::LCACalculator::new(taxon_tree);
-
+        
+        let aggregator: Box<dyn Aggregator> = match aggregation_method { 
+            AggregationMethod::Lca => Box::new(rmq::mix::MixCalculator::new(taxon_tree, 1.0)),
+            AggregationMethod::LcaStar => Box::new(rmq::lca::LCACalculator::new(taxon_tree)),
+        };
 
         Box::new(Self {
             snapping,
-            aggregator: Box::new(aggregator),
+            aggregator,
             taxon_list: by_id
         })
     }

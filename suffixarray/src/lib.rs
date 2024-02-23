@@ -5,7 +5,7 @@ use std::thread;
 use clap::{arg, Parser, ValueEnum};
 
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
-use tsv_utils::{get_proteins_from_database_file, read_lines, Proteins};
+use tsv_utils::{get_proteins_from_database_file, read_lines};
 
 use crate::binary::{load_binary, write_binary};
 use crate::searcher::Searcher;
@@ -68,7 +68,7 @@ pub struct Arguments {
     /// Set the style used to map back from the suffix to the protein. 2 options <sparse> or <dense>. Dense is default
     /// Dense uses O(n) memory with n the size of the input text, and takes O(1) time to find the mapping
     /// Sparse uses O(m) memory with m the number of proteins, and takes O(log m) to find the mapping
-    #[arg(long, value_enum, default_value_t = SuffixToProteinMappingStyle::Dense)]
+    #[arg(long, value_enum, default_value_t = SuffixToProteinMappingStyle::Sparse)]
     suffix_to_protein_mapping: SuffixToProteinMappingStyle,
     #[arg(long)]
     load_index: Option<String>,

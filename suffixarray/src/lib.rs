@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::error::Error;
 use std::num::NonZeroUsize;
 use std::thread;
@@ -20,6 +21,8 @@ mod searcher;
 mod suffix_to_protein_index;
 mod thread_error;
 mod util;
+
+const NUM_PEPTIDES_PER_THREAD: usize = 12500;
 
 /// Enum that represents the 2 kinds of search that we support
 /// - Search until match and return boolean that indicates if there is a match
@@ -186,12 +189,6 @@ fn search_batch(
 
 /// Perform the search as set with the commandline argumentsc
 fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn Error>> {
-    // Choose the number of threads to use
-    let number_of_threads = if let Some(threads) = args.threads {
-        threads
-    } else {
-        thread::available_parallelism()?
-    };
     let mode = args.mode.as_ref().ok_or("No search mode provided")?;
     let cutoff = args.cutoff;
     let search_file = args
@@ -203,6 +200,15 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
     let lines = read_lines(search_file)?;
     let all_peptides: Vec<String> = lines.map_while(Result::ok).collect();
 
+    // Choose the number of threads to use
+    let number_of_threads = if let Some(threads) = args.threads {
+        threads.get()
+    } else {
+        // we want around NUM_PEPTIDES_PER_THREAD peptides per thread, fewer peptides per thread does not give a major advantage anymore
+        // but take into account the actual number of available cores, so we don't schedule more threads than cores
+        min(all_peptides.len() / NUM_PEPTIDES_PER_THREAD, thread::available_parallelism()?.get())
+    };
+
     let work_per_thread = all_peptides.len() / number_of_threads;
     // this variable will contain the final result of the threads, currently initialise it as an error until results are written to it
     let mut results_with_error: Result<Vec<_>, _> =
@@ -211,10 +217,10 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
     // Start a scope where the treads will execute in.
     thread::scope(|s| {
         let mut children = vec![];
-        for i in 0..number_of_threads.get() {
+        for i in 0..number_of_threads {
             // fetch the part of the data that should be handled by thread i
             // the last thread should handle up to the complete end of the peptides list
-            let data = if i == number_of_threads.get() - 1 {
+            let data = if i == number_of_threads - 1 {
                 &all_peptides[i * work_per_thread..]
             } else {
                 &all_peptides[i * work_per_thread..(i + 1) * work_per_thread]

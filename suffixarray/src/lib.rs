@@ -1,21 +1,25 @@
 use std::error::Error;
-use std::io;
-use std::io::Write;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::num::NonZeroUsize;
+use std::thread;
 
 use clap::{arg, Parser, ValueEnum};
-use get_size::GetSize;
 
 use tsv_utils::{get_proteins_from_database_file, Proteins, read_lines};
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 
 use crate::binary::{load_binary, write_binary};
 use crate::searcher::Searcher;
-use crate::suffix_to_protein_index::{DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle};
+use crate::suffix_to_protein_index::{
+    DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
+};
+use crate::thread_error::ThreadError;
+use crate::util::get_time_ms;
 
-mod searcher;
 mod binary;
+mod searcher;
 mod suffix_to_protein_index;
+mod thread_error;
+mod util;
 
 /// Enum that represents the 2 kinds of search that we support
 /// - Search until match and return boolean that indicates if there is a match
@@ -52,10 +56,6 @@ pub struct Arguments {
     #[arg(short, long)]
     /// The taxonomy to be used as a tsv file. This is a preprocessed version of the NCBI taxonomy.
     taxonomy: String,
-    /// This will change the output to <found (0 or 1)>;<protein length>;<search time in ms>
-    /// The given num will be used to run the search x times and the average of these x runs will be given as search time
-    #[arg(short, long)]
-    verbose: Option<u8>,
     /// This will only build the tree and stop after that is completed. Used during benchmarking.
     #[arg(long)]
     build_only: bool,
@@ -64,7 +64,7 @@ pub struct Arguments {
     output: Option<String>,
     /// The sample rate used on the suffix array (default value 1, which means every value in the SA is used)
     #[arg(long, default_value_t = 1)]
-    sample_rate: u8, // TODO: is u8 enough for a sample rate?
+    sample_rate: u8,
     /// Set the style used to map back from the suffix to the protein. 2 options <sparse> or <dense>. Dense is default
     /// Dense uses O(n) memory with n the size of the input text, and takes O(1) time to find the mapping
     /// Sparse uses O(m) memory with m the number of proteins, and takes O(log m) to find the mapping
@@ -73,13 +73,16 @@ pub struct Arguments {
     #[arg(long)]
     load_index: Option<String>,
     #[arg(short, long, value_enum, default_value_t = SAConstructionAlgorithm::LibSais)]
-    construction_algorithm: SAConstructionAlgorithm
+    construction_algorithm: SAConstructionAlgorithm,
+    /// Assume the resulting taxon ID is root (1) whenever a peptide matches >= cutoff proteins
+    #[arg(long, default_value_t = 10000)]
+    cutoff: usize,
+    #[arg(long)]
+    threads: Option<NonZeroUsize>,
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
-    let start_reading_proteins_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+    let start_reading_proteins_ms = get_time_ms()?;
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy, AggregationMethod::LcaStar);
     // println!("taxonomy calculator built");
 
@@ -87,32 +90,29 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
 
     // construct the sequence that will be used to build the tree
     // println!("read all proteins");
-    let current = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+    let current = get_time_ms()?;
     // println!("Time spent for reading: {}", current - start_reading_proteins_ms);
 
     let sa = match &args.load_index {
         // load SA from file
         Some(index_file_name) => {
-            let start_loading_ms = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+            let start_loading_ms = get_time_ms()?;
             let (sample_rate, sa) = load_binary(index_file_name)?;
             args.sample_rate = sample_rate;
-            let end_loading_ms = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+            let end_loading_ms = get_time_ms()?;
             // println!("Loading the SA took {} ms and loading the proteins + SA took {} ms", end_loading_ms - start_loading_ms, end_loading_ms - start_reading_proteins_ms);
             // TODO: some kind of security check that the loaded database file and SA match
             sa
-        },
+        }
         // build the SA
         None => {
             let mut sa = match &args.construction_algorithm {
                 SAConstructionAlgorithm::LibSais => libsais64_rs::sais64(&proteins.input_string),
-                SAConstructionAlgorithm::LibDivSufSort => libdivsufsort_rs::divsufsort64(&proteins.input_string)
-            }.ok_or("Building suffix array failed")?;
+                SAConstructionAlgorithm::LibDivSufSort => {
+                    libdivsufsort_rs::divsufsort64(&proteins.input_string)
+                }
+            }
+            .ok_or("Building suffix array failed")?;
             // println!("SA constructed");
 
             // make the SA sparse and decrease the vector size if we have sampling (== sampling_rate > 1)
@@ -148,165 +148,158 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     }
 
     // build the right mapping index, use box to be able to store both types in this variable
-    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
-        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
-        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-    };
+    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> =
+        match args.suffix_to_protein_mapping {
+            SuffixToProteinMappingStyle::Dense => {
+                Box::new(DenseSuffixToProtein::new(&proteins.input_string))
+            }
+            SuffixToProteinMappingStyle::Sparse => {
+                Box::new(SparseSuffixToProtein::new(&proteins.input_string))
+            }
+        };
     // println!("mapping built");
 
-    let searcher = Searcher::new(&sa, args.sample_rate, suffix_index_to_protein.as_ref(), &proteins, &taxon_id_calculator);
-    execute_search(searcher, &proteins, &args);
+    execute_search(
+        &sa,
+        suffix_index_to_protein,
+        *taxon_id_calculator,
+        &proteins,
+        &args,
+    )?;
     Ok(())
 }
 
-/// Perform the search as set with the commandline arguments
-fn execute_search(mut searcher: Searcher, proteins: &Proteins, args: &Arguments) {
-    let mode = args.mode.as_ref().unwrap();
-    let verbose = args.verbose;
-    let mut verbose_output: Vec<String> = vec![];
-    if let Some(search_file) = &args.search_file {
-        // File `search_file` must exist in the current path
-        if let Ok(lines) = read_lines(search_file) {
-            let start_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-            for line in lines.into_iter().map_while(Result::ok) {
-                handle_search_word(&mut searcher, proteins, line, mode, verbose, &mut verbose_output);
-            }
-            let end_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-            eprintln!("Spend {} ms to search the whole file", end_time - start_time);
-        } else {
-            eprintln!("File {} could not be opened!", search_file);
-            std::process::exit(1);
-        }
+/// Executes the search of a list of peptides. This search is executed on 1 thread
+fn search_batch(
+    peptides_batch: &[String],
+    searcher: &mut Searcher,
+    search_mode: &SearchMode,
+    cutoff: usize,
+) -> Vec<String> {
+    peptides_batch
+        .iter()
+        .map(|peptide| handle_search_word(searcher, peptide, search_mode, cutoff))
+        .collect()
+}
+
+/// Perform the search as set with the commandline argumentsc
+fn execute_search(
+    sa: &Vec<i64>,
+    suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
+    taxon_id_calculator: TaxonIdCalculator,
+    proteins: &Proteins,
+    args: &Arguments,
+) -> Result<(), Box<dyn Error>> {
+    // Choose the number of threads to use
+    let number_of_threads = if let Some(threads) = args.threads {
+        threads
     } else {
-        loop {
-            print!("Input your search string: ");
-            io::stdout().flush().unwrap();
-            let mut word = String::new();
+        thread::available_parallelism()?
+    };
+    let mode = args.mode.as_ref().ok_or("No search mode provided")?;
+    let cutoff = args.cutoff;
+    let search_file = args
+        .search_file
+        .as_ref()
+        .ok_or("No peptide file provided to search in the database")?;
+    let lines = read_lines(search_file)?;
+    let start_time = get_time_ms()?;
+    let all_peptides: Vec<String> = lines.map_while(Result::ok).collect();
 
-            if io::stdin().read_line(&mut word).is_err() {
-                continue;
-            }
-            handle_search_word(&mut searcher, proteins, word, mode, verbose, &mut verbose_output);
+    let work_per_thread = all_peptides.len() / number_of_threads;
+    // this variable will contain the final result of the threads, currently initialise it as an error until results are written to it
+    let mut results_with_error: Result<Vec<_>, _> =
+        Err(ThreadError::new("Threads returned nothing"));
+
+    // Start a scope where the treads will execute in.
+    thread::scope(|s| {
+        let mut children = vec![];
+        for i in 0..number_of_threads.get() {
+            // fetch the part of the data that should be handled by thread i
+            // the last thread should handle up to the complete end of the peptides list
+            let data = if i == number_of_threads.get() - 1 {
+                &all_peptides[i * work_per_thread..]
+            } else {
+                &all_peptides[i * work_per_thread..(i + 1) * work_per_thread]
+            };
+            // Spin up another thread
+            children.push(s.spawn(|| {
+                let mut searcher = Searcher::new(
+                    sa,
+                    args.sample_rate,
+                    suffix_index_to_protein.as_ref(),
+                    proteins,
+                    &taxon_id_calculator,
+                );
+                search_batch(data, &mut searcher, mode, cutoff)
+            }));
         }
-    }
-    verbose_output.iter().for_each(|val| println!("{}", val));
-}
+        let mut results_from_threads = vec![];
+        for child in children {
+            results_from_threads.push(child.join());
+        }
+        results_with_error = results_from_threads
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| ThreadError::new("One of the threads failed to compute the results"));
+    });
+    let result: Vec<String> = results_with_error?.into_iter().flatten().collect();
+    let end_time = get_time_ms()?;
+    // output the results
+    result
+        .iter()
+        .enumerate()
+        .for_each(|(index, res)| println!("{};{}", all_peptides[index], res));
 
-fn time_execution(searcher: &mut Searcher, f: &dyn Fn(&mut Searcher) -> bool) -> (bool, f64) {
-    let start_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-    let found = f(searcher);
-    let end_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-    (found, end_ms - start_ms, )
-}
+    // output to other channel to prevent integrating it into the actual output
+    eprintln!(
+        "Spend {} ms to search the whole file",
+        end_time - start_time
+    );
 
+    Ok(())
+}
 
 /// Executes the kind of search indicated by the commandline arguments
-fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String, search_mode: &SearchMode, verbose: Option<u8>, verbose_output: &mut Vec<String>) {
-    let word = match word.strip_suffix('\n') {
-        None => word,
-        Some(stripped) => String::from(stripped)
-    }.to_uppercase();
+fn handle_search_word(
+    searcher: &mut Searcher,
+    word: &str,
+    search_mode: &SearchMode,
+    cutoff: usize,
+) -> String {
+    let word = word.strip_suffix('\n').unwrap_or(word).to_uppercase();
+
     // words that are shorter than the sample rate are not searchable
     if word.len() < searcher.sample_rate as usize {
-        if verbose.is_some() {
-            verbose_output.push(format!("(word too short short for SA sample size);{};", word.len()));
-        } else {
-            println!("/ (word too short short for SA sample size)")
-        }
-        return;
+        println!("/ (word too short short for SA sample size)");
+        return String::new();
     }
 
-    if let Some(num_iter) = verbose {
-        let mut found_total: bool = false;
-        let mut total_time: f64 = 0.0;
-        for _ in 0..num_iter {
-            let (found, execution_time) = match *search_mode {
-                SearchMode::Match => time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
-                SearchMode::MinMaxBound => time_execution(searcher, &|searcher| searcher.search_bounds(word.as_bytes()).0),
-                SearchMode::AllOccurrences => time_execution(searcher, &|searcher| !searcher.search_protein(word.as_bytes()).is_empty()),
-                SearchMode::TaxonId => time_execution(searcher, &|searcher| searcher.search_taxon_id(word.as_bytes()).is_some()),
-            };
-            total_time += execution_time;
-            found_total = found;
+    match *search_mode {
+        SearchMode::Match => format!("{}", searcher.search_if_match(word.as_bytes())),
+        SearchMode::MinMaxBound => {
+            let (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
+            format!("{found};{min_bound};{max_bound};")
         }
-        let avg = total_time / (num_iter as f64);
+        SearchMode::AllOccurrences => {
+            let results = searcher.search_protein(word.as_bytes());
+            let number_of_proteins = results.len();
+            let peptide_length = word.len();
+            format!("{peptide_length};{number_of_proteins};") // TODO: return all the matching protein strings perhaps?
+        }
+        SearchMode::TaxonId => {
+            let suffixes = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
+            let result = if suffixes.len() >= cutoff {
+                Some(1)
+            } else {
+                let proteins = searcher.retrieve_proteins(&suffixes);
+                searcher.retrieve_taxon_id(&proteins)
+            };
 
-        verbose_output.push(format!("{};{};{}", found_total as u8, word.len(), avg));
-    } else {
-        match *search_mode {
-            SearchMode::Match => println!("{}", searcher.search_if_match(word.as_bytes())),
-            SearchMode::MinMaxBound => {
-                let mut found= false;
-                let mut min_bound = 0;
-                let mut max_bound= 0;
-                let mut total_time = 0.0;
-                for _ in 0..3 {
-                    let start_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-                    (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
-                    let end_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-                    total_time += end_time - start_time;
-                }
-                let time_spent_searching = total_time/3.0;
-                println!("{found};{min_bound};{max_bound};{time_spent_searching}");
-            }
-            SearchMode::AllOccurrences => {
-                let mut results = vec![];
-                let mut total_time = 0.0;
-                for _ in 0..3 {
-                    let start_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-                    results = searcher.search_protein(word.as_bytes());
-
-                    let end_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-                    total_time += end_time - start_time;
-                }
-                let time_spent_searching = total_time/3.0;
-                let number_of_proteins = results.len();
-                let peptide_length = word.len();
-                println!("{peptide_length};{number_of_proteins};{time_spent_searching}");
-            }
-            SearchMode::TaxonId => {
-                let mut result = None;
-                let mut total_time = 0.0;
-                for _ in 0..1 {
-                    let start_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-                    let max_matches = 4000;
-                    let suffixes = searcher.search_matching_suffixes(word.as_bytes(), max_matches);
-                    if suffixes.len() >= max_matches {
-                        result = Some(1);
-                    } else {
-                        let proteins = searcher.retrieve_proteins(&suffixes);
-                        result = searcher.retrieve_taxon_id(&proteins);
-                    }
-
-                    let end_time = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
-                    total_time += end_time - start_time;
-                }
-                let taxon_id = if let Some(id) = result {
-                    format!("{id}")
-                } else {
-                    "/".to_string()
-                };
-                println!("{};{};{}", word.len(), taxon_id, total_time / 1.0);
+            if let Some(id) = result {
+                format!("{id}")
+            } else {
+                "/".to_string()
             }
         }
     }

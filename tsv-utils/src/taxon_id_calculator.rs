@@ -7,7 +7,7 @@ pub struct TaxonIdCalculator {
     taxon_list: TaxonList
 }
 
-pub trait TaxonIdVerifier {
+pub trait TaxonIdVerifier: Send {
 
     fn taxon_id_exists(&self, id: TaxonId) -> bool;
 

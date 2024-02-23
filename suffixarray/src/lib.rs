@@ -198,8 +198,9 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
         .search_file
         .as_ref()
         .ok_or("No peptide file provided to search in the database")?;
-    let lines = read_lines(search_file)?;
+
     let start_time = get_time_ms()?;
+    let lines = read_lines(search_file)?;
     let all_peptides: Vec<String> = lines.map_while(Result::ok).collect();
 
     let work_per_thread = all_peptides.len() / number_of_threads;
@@ -231,12 +232,12 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
             .map_err(|_| ThreadError::new("One of the threads failed to compute the results"));
     });
     let result: Vec<String> = results_with_error?.into_iter().flatten().collect();
-    let end_time = get_time_ms()?;
     // output the results
     result
         .iter()
         .enumerate()
         .for_each(|(index, res)| println!("{};{}", all_peptides[index], res));
+    let end_time = get_time_ms()?;
 
     // output to other channel to prevent integrating it into the actual output
     eprintln!(

@@ -4,8 +4,8 @@ use std::thread;
 
 use clap::{arg, Parser, ValueEnum};
 
-use tsv_utils::{get_proteins_from_database_file, Proteins, read_lines};
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
+use tsv_utils::{get_proteins_from_database_file, read_lines, Proteins};
 
 use crate::binary::{load_binary, write_binary};
 use crate::searcher::Searcher;
@@ -159,20 +159,22 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         };
     // println!("mapping built");
 
-    execute_search(
+    let searcher = Searcher::new(
         &sa,
-        suffix_index_to_protein,
-        *taxon_id_calculator,
+        args.sample_rate,
+        suffix_index_to_protein.as_ref(),
         &proteins,
-        &args,
-    )?;
+        &taxon_id_calculator,
+    );
+
+    execute_search(&searcher, &args)?;
     Ok(())
 }
 
 /// Executes the search of a list of peptides. This search is executed on 1 thread
 fn search_batch(
     peptides_batch: &[String],
-    searcher: &mut Searcher,
+    searcher: &Searcher,
     search_mode: &SearchMode,
     cutoff: usize,
 ) -> Vec<String> {
@@ -183,13 +185,7 @@ fn search_batch(
 }
 
 /// Perform the search as set with the commandline argumentsc
-fn execute_search(
-    sa: &Vec<i64>,
-    suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
-    taxon_id_calculator: TaxonIdCalculator,
-    proteins: &Proteins,
-    args: &Arguments,
-) -> Result<(), Box<dyn Error>> {
+fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn Error>> {
     // Choose the number of threads to use
     let number_of_threads = if let Some(threads) = args.threads {
         threads
@@ -223,16 +219,7 @@ fn execute_search(
                 &all_peptides[i * work_per_thread..(i + 1) * work_per_thread]
             };
             // Spin up another thread
-            children.push(s.spawn(|| {
-                let mut searcher = Searcher::new(
-                    sa,
-                    args.sample_rate,
-                    suffix_index_to_protein.as_ref(),
-                    proteins,
-                    &taxon_id_calculator,
-                );
-                search_batch(data, &mut searcher, mode, cutoff)
-            }));
+            children.push(s.spawn(|| search_batch(data, searcher, mode, cutoff)));
         }
         let mut results_from_threads = vec![];
         for child in children {
@@ -262,7 +249,7 @@ fn execute_search(
 
 /// Executes the kind of search indicated by the commandline arguments
 fn handle_search_word(
-    searcher: &mut Searcher,
+    searcher: &Searcher,
     word: &str,
     search_mode: &SearchMode,
     cutoff: usize,

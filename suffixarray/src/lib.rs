@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{arg, Parser, ValueEnum};
 use get_size::GetSize;
+use libsais64_rs::{calculate_lcp, calculate_plcp};
 
 use tsv_utils::{get_proteins_from_database_file, Proteins, read_lines};
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
@@ -132,6 +133,8 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
             sa
         }
     };
+
+    let _plcp = calculate_plcp(&proteins.input_string, &sa).ok_or("Failed to build LCP array")?;
 
     if let Some(output) = &args.output {
         println!("storing index to file {}", output);

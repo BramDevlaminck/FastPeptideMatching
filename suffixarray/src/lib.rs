@@ -195,10 +195,12 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
         .par_iter()
         // calculate the results
         .map(|peptide| handle_search_word(searcher, peptide, mode, cutoff))
+        // output the results, collect is needed to store order so the output is in the right sequential order
+        .collect::<Vec<String>>()
+        .iter()
         .enumerate()
-        // output the results
         .for_each(|(index, res)| println!("{};{}", all_peptides[index], res));
-   
+
     let end_time = get_time_ms()?;
 
     // output to other channel to prevent integrating it into the actual output

@@ -1,9 +1,8 @@
-use std::cmp::min;
 use std::error::Error;
 use std::num::NonZeroUsize;
-use std::thread;
 
 use clap::{arg, Parser, ValueEnum};
+use rayon::prelude::*;
 
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 use tsv_utils::{get_proteins_from_database_file, read_lines};
@@ -13,13 +12,11 @@ use crate::searcher::Searcher;
 use crate::suffix_to_protein_index::{
     DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
 };
-use crate::thread_error::ThreadError;
 use crate::util::get_time_ms;
 
 mod binary;
 mod searcher;
 mod suffix_to_protein_index;
-mod thread_error;
 mod util;
 
 const NUM_PEPTIDES_PER_THREAD: usize = 12500;
@@ -174,19 +171,6 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Executes the search of a list of peptides. This search is executed on 1 thread
-fn search_batch(
-    peptides_batch: &[String],
-    searcher: &Searcher,
-    search_mode: &SearchMode,
-    cutoff: usize,
-) -> Vec<String> {
-    peptides_batch
-        .iter()
-        .map(|peptide| handle_search_word(searcher, peptide, search_mode, cutoff))
-        .collect()
-}
-
 /// Perform the search as set with the commandline argumentsc
 fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn Error>> {
     let mode = args.mode.as_ref().ok_or("No search mode provided")?;
@@ -200,49 +184,21 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
     let lines = read_lines(search_file)?;
     let all_peptides: Vec<String> = lines.map_while(Result::ok).collect();
 
-    // Choose the number of threads to use
-    let number_of_threads = if let Some(threads) = args.threads {
-        threads.get()
-    } else {
-        // we want around NUM_PEPTIDES_PER_THREAD peptides per thread, fewer peptides per thread does not give a major advantage anymore
-        // but take into account the actual number of available cores, so we don't schedule more threads than cores
-        min(all_peptides.len() / NUM_PEPTIDES_PER_THREAD, thread::available_parallelism()?.get())
-    };
+    // Explicitly set the number of threads to use if the commandline argument was set
+    if let Some(threads) = args.threads {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads.get())
+            .build_global()?;
+    }
 
-    let work_per_thread = all_peptides.len() / number_of_threads;
-    // this variable will contain the final result of the threads, currently initialise it as an error until results are written to it
-    let mut results_with_error: Result<Vec<_>, _> =
-        Err(ThreadError::new("Threads returned nothing"));
-
-    // Start a scope where the treads will execute in.
-    thread::scope(|s| {
-        let mut children = vec![];
-        for i in 0..number_of_threads {
-            // fetch the part of the data that should be handled by thread i
-            // the last thread should handle up to the complete end of the peptides list
-            let data = if i == number_of_threads - 1 {
-                &all_peptides[i * work_per_thread..]
-            } else {
-                &all_peptides[i * work_per_thread..(i + 1) * work_per_thread]
-            };
-            // Spin up another thread
-            children.push(s.spawn(|| search_batch(data, searcher, mode, cutoff)));
-        }
-        let mut results_from_threads = vec![];
-        for child in children {
-            results_from_threads.push(child.join());
-        }
-        results_with_error = results_from_threads
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| ThreadError::new("One of the threads failed to compute the results"));
-    });
-    let result: Vec<String> = results_with_error?.into_iter().flatten().collect();
-    // output the results
-    result
-        .iter()
+    all_peptides
+        .par_iter()
+        // calculate the results
+        .map(|peptide| handle_search_word(searcher, peptide, mode, cutoff))
         .enumerate()
+        // output the results
         .for_each(|(index, res)| println!("{};{}", all_peptides[index], res));
+   
     let end_time = get_time_ms()?;
 
     // output to other channel to prevent integrating it into the actual output

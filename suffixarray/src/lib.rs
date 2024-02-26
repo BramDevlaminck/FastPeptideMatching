@@ -135,7 +135,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
 
     if let Some(output) = &args.output {
         // println!("storing index to file {}", output);
-        write_binary(args.sample_rate, &sa, &proteins.input_string, output).unwrap();
+        write_binary(args.sample_rate, &sa, output)?;
         // println!("Index written away");
     }
 

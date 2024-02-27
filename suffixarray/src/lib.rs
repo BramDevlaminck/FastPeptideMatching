@@ -173,6 +173,13 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
 
 /// Perform the search as set with the commandline argumentsc
 fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn Error>> {
+    // Explicitly set the number of threads to use if the commandline argument was set
+    if let Some(threads) = args.threads {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads.get())
+            .build_global()?;
+    }
+    
     let mode = args.mode.as_ref().ok_or("No search mode provided")?;
     let cutoff = args.cutoff;
     let search_file = args
@@ -181,32 +188,27 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
         .ok_or("No peptide file provided to search in the database")?;
 
     let start_time = get_time_ms()?;
-    let lines = read_lines(search_file)?;
-    let all_peptides: Vec<String> = lines.map_while(Result::ok).collect();
+    for _ in 0..10 {
+        let lines = read_lines(search_file)?;
+        let all_peptides: Vec<String> = lines.map_while(Result::ok).collect();
 
-    // Explicitly set the number of threads to use if the commandline argument was set
-    if let Some(threads) = args.threads {
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(threads.get())
-            .build_global()?;
+        all_peptides
+            .par_iter()
+            // calculate the results
+            .map(|peptide| handle_search_word(searcher, peptide, mode, cutoff))
+            // output the results, collect is needed to store order so the output is in the right sequential order
+            .collect::<Vec<String>>()
+            .iter()
+            .enumerate()
+            .for_each(|(index, res)| println!("{};{}", all_peptides[index], res));
     }
-
-    all_peptides
-        .par_iter()
-        // calculate the results
-        .map(|peptide| handle_search_word(searcher, peptide, mode, cutoff))
-        // output the results, collect is needed to store order so the output is in the right sequential order
-        .collect::<Vec<String>>()
-        .iter()
-        .enumerate()
-        .for_each(|(index, res)| println!("{};{}", all_peptides[index], res));
 
     let end_time = get_time_ms()?;
 
     // output to other channel to prevent integrating it into the actual output
     eprintln!(
         "Spend {} ms to search the whole file",
-        end_time - start_time
+        (end_time - start_time) / 10.0
     );
 
     Ok(())

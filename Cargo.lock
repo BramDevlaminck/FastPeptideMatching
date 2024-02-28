@@ -1024,7 +1024,7 @@ dependencies = [
  "libsais64-rs",
  "rayon",
  "tsv-utils",
- "umgap 1.0.0",
+ "umgap",
 ]
 
 [[package]]
@@ -1033,7 +1033,7 @@ version = "0.1.0"
 dependencies = [
  "clap 4.4.8",
  "tsv-utils",
- "umgap 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "umgap",
 ]
 
 [[package]]
@@ -1099,33 +1099,14 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 name = "tsv-utils"
 version = "0.1.0"
 dependencies = [
- "umgap 1.0.0",
+ "umgap",
 ]
 
 [[package]]
 name = "umgap"
-version = "1.0.0"
-dependencies = [
- "attohttpc",
- "clap 2.34.0",
- "csv",
- "error-chain",
- "fst",
- "lazy_static",
- "ordered-float",
- "rayon",
- "regex",
- "serde_json",
- "structopt",
- "strum",
- "strum_macros",
-]
-
-[[package]]
-name = "umgap"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "443ffc162e93aca208910aed36092782038ab61eb100ebe7f30b30b3038b47d3"
+checksum = "db403119ca827e0e097aa3268283072a373e65733f0c9edcdec06ea163741421"
 dependencies = [
  "attohttpc",
  "clap 2.34.0",

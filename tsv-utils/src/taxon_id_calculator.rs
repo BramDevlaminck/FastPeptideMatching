@@ -1,9 +1,9 @@
 use umgap::{agg, rmq, taxon};
-use umgap::agg::Aggregator;
+use umgap::agg::MultiThreadSafeAggregator;
 use umgap::taxon::{TaxonId, TaxonList, TaxonTree};
 pub struct TaxonIdCalculator {
     snapping: Vec<Option<TaxonId>>,
-    aggregator: Box<dyn Aggregator>,
+    aggregator: Box<dyn MultiThreadSafeAggregator>,
     taxon_list: TaxonList
 }
 
@@ -25,7 +25,7 @@ impl TaxonIdCalculator {
         let by_id = TaxonList::new(taxons);
         let snapping = taxon_tree.snapping(&by_id, true);
         
-        let aggregator: Box<dyn Aggregator> = match aggregation_method { 
+        let aggregator: Box<dyn MultiThreadSafeAggregator> = match aggregation_method { 
             AggregationMethod::Lca => Box::new(rmq::mix::MixCalculator::new(taxon_tree, 1.0)),
             AggregationMethod::LcaStar => Box::new(rmq::lca::LCACalculator::new(taxon_tree)),
         };

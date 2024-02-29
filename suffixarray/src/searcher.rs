@@ -5,17 +5,17 @@ use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use crate::Nullable;
 use crate::suffix_to_protein_index::SuffixToProteinIndex;
 
-pub struct Searcher<'a> {
-    sa: &'a Vec<i64>,
+pub struct Searcher {
+    sa: Vec<i64>,
     pub sample_rate: u8,
-    suffix_index_to_protein: &'a dyn SuffixToProteinIndex,
-    proteins: &'a Proteins,
-    taxon_id_calculator: &'a TaxonIdCalculator
+    suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
+    proteins: Proteins,
+    taxon_id_calculator: TaxonIdCalculator
 }
 
-impl <'a> Searcher<'a> {
+impl Searcher {
 
-    pub fn new(sa: &'a Vec<i64>, sample_rate: u8, suffix_index_to_protein: &'a dyn SuffixToProteinIndex, proteins: &'a Proteins, taxon_id_calculator: &'a TaxonIdCalculator) -> Self {
+    pub fn new(sa: Vec<i64>, sample_rate: u8, suffix_index_to_protein: Box<dyn SuffixToProteinIndex>, proteins: Proteins, taxon_id_calculator: TaxonIdCalculator) -> Self {
         Self {
             sa,
             sample_rate,

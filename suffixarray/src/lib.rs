@@ -158,11 +158,11 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     // println!("mapping built");
 
     let searcher = Searcher::new(
-        &sa,
+        sa,
         args.sample_rate,
-        suffix_index_to_protein.as_ref(),
-        &proteins,
-        &taxon_id_calculator,
+        suffix_index_to_protein, 
+        proteins,
+        *taxon_id_calculator,
     );
 
     execute_search(&searcher, &args)?;

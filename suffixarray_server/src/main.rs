@@ -8,13 +8,10 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use suffixarray::binary::load_binary;
+use suffixarray::searcher::Searcher;
 use suffixarray::suffix_to_protein_index::SparseSuffixToProtein;
 use tsv_utils::get_proteins_from_database_file;
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
-
-use crate::searcher::Searcher;
-
-mod searcher;
 
 #[derive(Parser, Debug)]
 pub struct Arguments {
@@ -105,7 +102,7 @@ async fn main() {
 
     let taxon_id_calculator = TaxonIdCalculator::new(&taxonomy, AggregationMethod::LcaStar);
     let proteins = get_proteins_from_database_file(&database_file, &*taxon_id_calculator);
-    let suffix_index_to_protein = SparseSuffixToProtein::new(&proteins.input_string);
+    let suffix_index_to_protein = Box::new(SparseSuffixToProtein::new(&proteins.input_string));
 
     let searcher = Arc::new(Searcher::new(
         sa,

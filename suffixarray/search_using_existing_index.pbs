@@ -1,0 +1,37 @@
+#!/bin/bash
+
+#########################################################################################################
+### This script is designed to run on the Ghent university HPC                                        ###
+###                                                                                                   ###
+### how to use:                                                                                       ###
+### 1) load the rust module Rust/1.70.0-GCCcore-12.3.0 with `module load Rust/1.75.0-GCCcore-12.3.0`  ###
+### 2) compile the code on the login node using `cargo build --release`                               ###
+### 3) navigate the to folder of the binary (in `target/release`)                                     ###
+### 4) submit the job to the queue with `qsub search_using_existing_index.pbs`                        ###
+#########################################################################################################
+
+# go to cluster with high memory
+module swap cluster/gallade
+
+# define requested memory, cpu resources and email notifications
+#PBS -m abe
+#PBS -l walltime=05:00:00
+#PBS -l mem=500gb
+# ask for 1 node, 1 cpu (not more needed since we don't have parallelism)
+#PBS -l nodes=1:ppn=1
+#PBS -N suffix_array_construction_uniprot
+
+# define output and error files
+#PBS -o stdout.$PBS_JOBID
+#PBS -e stderr.$PBS_JOBID
+
+search_folder="swissprot_var1/"
+search_prefix="$VSC_DATA/BenchmarkData/"
+search_file="search_file_no_mch.tsv"
+
+folder=""
+prefix="$VSC_DATA_VO/bram/"
+
+# go to current working dir and execute
+cd $PBS_O_WORKDIR
+./suffixarray -d "$prefix""$folder"uniprotKB_protein_database.tsv --load-index "$prefix""$folder"uniprot_indexed_sa_sample4_with_sample_size_byte.bin --suffix-to-protein-mapping sparse -t "$prefix"taxons.tsv -s "$search_prefix""$search_folder""$search_file"  -m taxon-id

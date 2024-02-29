@@ -1,10 +1,11 @@
+use tsv_utils::SEPARATION_CHARACTER;
 use crate::cursor::{Cursor, CursorIterator};
 use crate::tree::{NodeIndex, Tree};
 
 pub trait TreeBuilder {
     fn new() -> Self;
 
-    fn build(&self, data: &str, tree: Tree) -> Tree;
+    fn build(&self, data: &Vec<u8>, tree: Tree) -> Tree;
 }
 
 pub struct NaiveBuilder;
@@ -14,13 +15,12 @@ impl TreeBuilder for NaiveBuilder {
         Self
     }
 
-    fn build(&self, data: &str, mut tree: Tree) -> Tree {
+    fn build(&self, data: &Vec<u8>, mut tree: Tree) -> Tree {
         let mut cursor = Cursor::new(&mut tree);
-        let input_string = data.as_bytes();
-        let end_index = input_string.len();
-        for (i, character) in input_string.iter().enumerate() {
+        let end_index = data.len();
+        for (i, character) in data.iter().enumerate() {
             let mut index_in_entry = i;
-            let mut ret_value = cursor.next(*character, input_string);
+            let mut ret_value = cursor.next(*character, data);
 
             while ret_value == CursorIterator::Ok {
                 index_in_entry += 1;
@@ -28,13 +28,13 @@ impl TreeBuilder for NaiveBuilder {
                     ret_value = CursorIterator::AtEnd;
                     break;
                 }
-                ret_value = cursor.next(input_string[index_in_entry], input_string);
+                ret_value = cursor.next(data[index_in_entry], data);
             }
 
             if ret_value == CursorIterator::InWord {
-                cursor.split_and_add_naive(index_in_entry, end_index, input_string);
+                cursor.split_and_add_naive(index_in_entry, end_index, data);
             } else {
-                cursor.add_leaf_naive(index_in_entry, end_index, input_string);
+                cursor.add_leaf_naive(index_in_entry, end_index, data);
             }
             cursor.reset();
         }
@@ -51,10 +51,9 @@ impl TreeBuilder for UkkonenBuilder {
         Self
     }
 
-    fn build(&self, data: &str, mut tree: Tree) -> Tree {
+    fn build(&self, data: &Vec<u8>, mut tree: Tree) -> Tree {
         let mut cursor = Cursor::new(&mut tree);
-        let input_string = data.as_bytes();
-        let end_index = input_string.len();
+        let end_index = data.len();
         let mut current_protein_index: usize = 0;
         let mut num_leaves = 0;
         for j in 1..=end_index {
@@ -68,26 +67,26 @@ impl TreeBuilder for UkkonenBuilder {
                     prev_internal_node = None;
                 }
 
-                if cursor.next(input_string[j - 1], input_string) == CursorIterator::Ok {
+                if cursor.next(data[j - 1], data) == CursorIterator::Ok {
                     break; // rule 3 : do nothing + show stopper
                 }
 
                 // rule 2: split edge if needed and add leaf
                 if !cursor.at_node() {
-                    let new_internal_node_index = cursor.split_edge(input_string);
+                    let new_internal_node_index = cursor.split_edge(data);
                     if let Some(prev_current_node_index) = prev_internal_node {
                         cursor.add_link(prev_current_node_index, new_internal_node_index);
                     }
                     prev_internal_node = Some(new_internal_node_index);
                 }
-                cursor.add_leaf_from_position(j - 1, current_protein_index, input_string);
+                cursor.add_leaf_from_position(j - 1, current_protein_index, data);
                 num_leaves += 1;
-                if input_string[i] == b'#' {
+                if data[i] == SEPARATION_CHARACTER {
                     current_protein_index += 1;
                 }
 
                 // follow the suffix link since the extension is complete
-                cursor.follow_link(input_string);
+                cursor.follow_link(data);
             }
         }
 

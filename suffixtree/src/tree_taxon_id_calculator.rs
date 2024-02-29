@@ -1,28 +1,20 @@
-use umgap::{agg, rmq::mix::MixCalculator, taxon};
-use umgap::agg::Aggregator;
-use umgap::taxon::{TaxonId, TaxonList, TaxonTree};
+use umgap::taxon::TaxonId;
+
+use tsv_utils::taxon_id_calculator::{TaxonIdCalculator, TaxonIdVerifier};
 
 use crate::Protein;
 use crate::tree::{NodeIndex, Nullable, Tree};
 
-pub struct TaxonIdCalculator {
-    snapping: Vec<Option<TaxonId>>,
-    aggregator: Box<dyn Aggregator>,
+pub struct TreeTaxonIdCalculator {
+    taxon_id_calculator: Box<TaxonIdCalculator>,
 }
 
-impl TaxonIdCalculator {
-    pub fn new(ncbi_taxonomy_fasta_file: &str) -> Box<Self> {
-        let taxons = taxon::read_taxa_file(ncbi_taxonomy_fasta_file).unwrap();
-        let taxon_tree = TaxonTree::new(&taxons);
-        let by_id = TaxonList::new(taxons);
-        let snapping = taxon_tree.snapping(&by_id, true);
+impl TreeTaxonIdCalculator {
 
-        let aggregator = MixCalculator::new(taxon_tree, 1.0);
-
-        Box::new(Self {
-            snapping,
-            aggregator: Box::new(aggregator),
-        })
+    pub fn new(ncbi_taxonomy_fasta_file: &str) -> Self {
+        Self {
+            taxon_id_calculator: TaxonIdCalculator::new(ncbi_taxonomy_fasta_file)
+        }
     }
 
     /// Calculates the taxon ids by only using the leaves in the tree
@@ -50,6 +42,7 @@ impl TaxonIdCalculator {
             }
         }
     }
+    
     /// Fill in all the taxon ids for the complete tree
     pub fn calculate_taxon_ids(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
         self.recursive_calculate_taxon_ids(tree, proteins, 0);
@@ -135,13 +128,18 @@ impl TaxonIdCalculator {
 
     /// Snaps the given taxon ID using the ncbi taxonomy that was provided to the TaxonIdCalculator.
     pub fn snap_taxon_id(&self, id: TaxonId) -> TaxonId {
-        self.snapping[id].unwrap_or_else(|| panic!("Could not snap taxon with id {id}"))
+        self.taxon_id_calculator.snap_taxon_id(id)
     }
 
     /// Calculates the aggregate of a vector containing TaxonIds
     fn get_aggregate(&self, ids: Vec<TaxonId>) -> TaxonId {
-        let count = agg::count(ids.into_iter().map(|it| (it, 1.0)));
-        self.aggregator.aggregate(&count).unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count))
+        self.taxon_id_calculator.get_aggregate(ids)
+    }
+}
+
+impl TaxonIdVerifier for TreeTaxonIdCalculator {
+    fn taxon_id_exists(&self, id: TaxonId) -> bool {
+        self.taxon_id_calculator.taxon_id_exists(id)
     }
 }
 
@@ -149,7 +147,7 @@ impl TaxonIdCalculator {
 #[cfg(test)]
 mod test {
     use crate::Protein;
-    use crate::taxon_id_calculator::TaxonIdCalculator;
+    use crate::tree_taxon_id_calculator::TreeTaxonIdCalculator;
     use crate::tree::{MAX_CHILDREN, Node, NodeIndex, Nullable, Range, Tree};
 
     #[test]
@@ -169,7 +167,7 @@ mod test {
         //      4     5
         //     (10)  (9)
 
-        let test_taxonomy_file = "small_taxonomy.tsv";
+        let test_taxonomy_file = "../small_taxonomy.tsv";
         let mut tree = Tree {
             arena: vec![
                 Node {
@@ -246,24 +244,24 @@ mod test {
 
         let proteins = vec![
             Protein {
-                sequence: "ABC".to_string(),
+                sequence: (0, 3),
                 id: 10,
             },
             Protein {
-                sequence: "XYZ".to_string(),
+                sequence: (4, 7),
                 id: 9,
             },
             Protein {
-                sequence: "XAZ".to_string(),
+                sequence: (8, 11),
                 id: 20,
             },
             Protein {
-                sequence: "W".to_string(),
+                sequence: (12, 13),
                 id: 2,
             },
         ];
 
-        TaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids(&mut tree, &proteins);
+        TreeTaxonIdCalculator::new(test_taxonomy_file).calculate_taxon_ids(&mut tree, &proteins);
 
         assert_eq!(tree.arena[0].taxon_id, 1);
         assert_eq!(tree.arena[1].taxon_id, 6);

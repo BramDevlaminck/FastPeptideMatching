@@ -1,4 +1,5 @@
 use umgap::taxon::TaxonId;
+use tsv_utils::{END_CHARACTER, SEPARATION_CHARACTER};
 use crate::tree_builder::TreeBuilder;
 
 pub const MAX_CHILDREN: usize = 28;
@@ -31,7 +32,7 @@ pub struct Tree {
 }
 
 impl Tree {
-    pub fn new(data: &str, builder: impl TreeBuilder) -> Self {
+    pub fn new(data: &Vec<u8>, builder: impl TreeBuilder) -> Self {
         builder.build(
             data,
             Tree {
@@ -89,9 +90,9 @@ impl Node {
     }
 
     fn char_to_child_index(character: u8) -> usize {
-        if character == b'#' {
+        if character == SEPARATION_CHARACTER {
             26
-        } else if character == b'$' {
+        } else if character == END_CHARACTER {
             27
         } else {
             character as usize - 65 // 65 is 'A' in ascii
@@ -136,9 +137,9 @@ mod tests {
 
     #[test]
     fn total_test() {
-        let input = "ACACACGT$";
+        let input = "ACACACGT$".as_bytes().to_vec();
 
-        let tree = Tree::new(input, UkkonenBuilder::new());
+        let tree = Tree::new(&input, UkkonenBuilder::new());
         let mut control_tree = Tree { arena: vec![] };
         for _ in 0..14 {
             control_tree.arena.push(Node::new(

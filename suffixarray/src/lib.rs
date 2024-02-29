@@ -193,9 +193,6 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
         .par_iter()
         // calculate the results
         .map(|peptide| handle_search_word(searcher, peptide, mode, cutoff))
-        // output the results, collect is needed to store order so the output is in the right sequential order
-        .collect::<Vec<Option<String>>>()// TODO: this collect that makes the output again sequential is possibly unneeded since we also output the corresponding peptide (but make sure this still makes the right peptide;taxon-id mapping)
-        .iter()
         .enumerate()
         .for_each(|(index, res)| {
             if let Some(output) = res {

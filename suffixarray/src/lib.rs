@@ -18,6 +18,7 @@ mod binary;
 mod searcher;
 mod suffix_to_protein_index;
 mod util;
+mod index_load_error;
 
 /// Enum that represents the 2 kinds of search that we support
 /// - Search until match and return boolean that indicates if there is a match
@@ -92,10 +93,10 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     // println!("Time spent for reading: {}", current - start_reading_proteins_ms);
 
     let sa = match &args.load_index {
-        // load SA from file
+        // load SA from filec
         Some(index_file_name) => {
             let start_loading_ms = get_time_ms()?;
-            let (sample_rate, sa) = load_binary(index_file_name)?;
+            let (sample_rate, sa) = load_binary(index_file_name, &args.database_file, &args.taxonomy)?;
             args.sample_rate = sample_rate;
             let end_loading_ms = get_time_ms()?;
             // println!("Loading the SA took {} ms and loading the proteins + SA took {} ms", end_loading_ms - start_loading_ms, end_loading_ms - start_reading_proteins_ms);
@@ -133,7 +134,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
 
     if let Some(output) = &args.output {
         // println!("storing index to file {}", output);
-        write_binary(args.sample_rate, &sa, output)?;
+        write_binary(args.sample_rate, &sa, output, &args.database_file, &args.taxonomy)?;
         // println!("Index written away");
     }
 

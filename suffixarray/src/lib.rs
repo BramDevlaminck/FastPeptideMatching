@@ -14,10 +14,10 @@ use crate::suffix_to_protein_index::{
 };
 use crate::util::get_time_ms;
 
-mod binary;
-mod searcher;
-mod suffix_to_protein_index;
-mod util;
+pub mod binary;
+pub mod searcher;
+pub mod suffix_to_protein_index;
+pub mod util;
 
 /// Enum that represents the 2 kinds of search that we support
 /// - Search until match and return boolean that indicates if there is a match
@@ -169,6 +169,8 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+
+
 /// Perform the search as set with the commandline argumentsc
 fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn Error>> {
     let mode = args.mode.as_ref().ok_or("No search mode provided")?;
@@ -211,7 +213,7 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
 }
 
 /// Executes the kind of search indicated by the commandline arguments
-fn handle_search_word(
+pub fn handle_search_word(
     searcher: &Searcher,
     word: &str,
     search_mode: &SearchMode,

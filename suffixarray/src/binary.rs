@@ -1,11 +1,9 @@
-use checksum_tool::calculate_checksum;
 use std::cmp::min;
 use std::error::Error;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use crate::index_load_error::IndexLoadError;
-
-const ONE_GIB: usize = 2usize.pow(30);
+use crate::util::{calculate_checksum, ONE_GIB};
 
 pub trait Serializable {
     fn serialize(&self) -> Vec<u8>;

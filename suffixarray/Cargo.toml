@@ -13,4 +13,3 @@ tsv-utils = { path = "../tsv-utils" }
 umgap = "1.1.0"
 libsais64-rs = { path = "../libsais64-rs" }
 rayon = "1.8.1"
-checksum_tool = {path = "../checksum_tool" }

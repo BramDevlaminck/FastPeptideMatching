@@ -32,7 +32,7 @@ fn deserialize_sa(data: &[u8]) -> Vec<i64> {
 
 // from: https://gist.github.com/taylorsmithgg/ba7b070c0964aa8b86d311ab6f8f5508
 // https://dev.to/oliverjumpertz/how-to-write-files-in-rust-m06?comments_sort=top
-pub fn write_binary(sample_rate: u8, suffix_array: &Vec<i64>, name: &str) -> Result<(), std::io::Error> {
+pub fn write_binary(sample_rate: u8, suffix_array: &[i64], name: &str) -> Result<(), std::io::Error> {
     // TODO: how to store the uniprot protein data? store in separate files, or just assume we re-read the complete tsv
     //  we could also use the first x bytes to store the uniprot version that this SA was built for
     // create the file
@@ -61,7 +61,7 @@ pub fn load_binary(name: &str) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
 }
 
 fn read_sa_file(mut file: &File) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
-    let mut sample_rate_buffer = [0_u8; 1]; // TODO: if sample rate should be bigger than a u8, change this buffer size!
+    let mut sample_rate_buffer = [0_u8; 1];
     file.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
     let sample_rate = sample_rate_buffer[0];
 

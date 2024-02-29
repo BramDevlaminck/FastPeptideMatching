@@ -19,8 +19,6 @@ mod searcher;
 mod suffix_to_protein_index;
 mod util;
 
-const NUM_PEPTIDES_PER_THREAD: usize = 12500;
-
 /// Enum that represents the 2 kinds of search that we support
 /// - Search until match and return boolean that indicates if there is a match
 /// - Search until match, if there is a match return the min and max index in the SA that matches
@@ -196,7 +194,7 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
         // calculate the results
         .map(|peptide| handle_search_word(searcher, peptide, mode, cutoff))
         // output the results, collect is needed to store order so the output is in the right sequential order
-        .collect::<Vec<String>>()
+        .collect::<Vec<String>>()// TODO: this collect that makes the output again sequential is possibly unneeded since we also output the corresponding peptide (but make sure this still makes the right peptide;taxon-id mapping)
         .iter()
         .enumerate()
         .for_each(|(index, res)| println!("{};{}", all_peptides[index], res));

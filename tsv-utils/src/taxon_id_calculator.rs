@@ -4,6 +4,13 @@ use umgap::taxon::{TaxonId, TaxonList, TaxonTree};
 pub struct TaxonIdCalculator {
     snapping: Vec<Option<TaxonId>>,
     aggregator: Box<dyn Aggregator>,
+    taxon_list: TaxonList
+}
+
+pub trait TaxonIdVerifier {
+
+    fn taxon_id_exists(&self, id: TaxonId) -> bool;
+
 }
 
 impl TaxonIdCalculator {
@@ -18,6 +25,7 @@ impl TaxonIdCalculator {
         Box::new(Self {
             snapping,
             aggregator: Box::new(aggregator),
+            taxon_list: by_id
         })
     }
 
@@ -30,5 +38,12 @@ impl TaxonIdCalculator {
     pub fn get_aggregate(&self, ids: Vec<TaxonId>) -> TaxonId {
         let count = agg::count(ids.into_iter().map(|it| (it, 1.0)));
         self.aggregator.aggregate(&count).unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count))
+    }
+
+}
+
+impl TaxonIdVerifier for TaxonIdCalculator {
+    fn taxon_id_exists(&self, id: TaxonId) -> bool {
+        self.taxon_list.get(id).is_some()
     }
 }

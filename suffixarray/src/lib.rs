@@ -1,17 +1,21 @@
-mod searcher;
-mod binary;
-
 use std::error::Error;
 use std::io;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
+
 use clap::{arg, Parser, ValueEnum};
 use get_size::GetSize;
-use tsv_utils::{END_CHARACTER, get_proteins_from_database_file, Proteins, read_lines, SEPARATION_CHARACTER};
 
+use tsv_utils::{get_proteins_from_database_file, Proteins, read_lines};
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
-use crate::binary::write_binary;
+
+use crate::binary::{load_binary, write_binary};
 use crate::searcher::Searcher;
+use crate::suffix_to_protein_index::{DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle};
+
+mod searcher;
+mod binary;
+mod suffix_to_protein_index;
 
 /// Enum that represents the 2 kinds of search that we support
 /// - Search until match and return boolean that indicates if there is a match
@@ -24,6 +28,12 @@ pub enum SearchMode {
     MinMaxBound,
     AllOccurrences,
     TaxonId,
+}
+
+#[derive(ValueEnum, Clone, Debug, PartialEq)]
+pub enum SAConstructionAlgorithm {
+    LibDivSufSort,
+    LibSais,
 }
 
 #[derive(Parser, Debug)]
@@ -52,32 +62,81 @@ pub struct Arguments {
     /// Output file to store the built index.
     #[arg(short, long)]
     output: Option<String>,
+    /// The sample rate used on the suffix array (default value 1, which means every value in the SA is used)
+    #[arg(long, default_value_t = 1)]
+    sample_rate: u8, // TODO: is u8 enough for a sample rate?
+    /// Set the style used to map back from the suffix to the protein. 2 options <sparse> or <dense>. Dense is default
+    /// Dense uses O(n) memory with n the size of the input text, and takes O(1) time to find the mapping
+    /// Sparse uses O(m) memory with m the number of proteins, and takes O(log m) to find the mapping
+    #[arg(long, value_enum, default_value_t = SuffixToProteinMappingStyle::Dense)]
+    suffix_to_protein_mapping: SuffixToProteinMappingStyle,
+    #[arg(long)]
+    load_index: Option<String>,
+    #[arg(short, long, value_enum, default_value_t = SAConstructionAlgorithm::LibSais)]
+    construction_algorithm: SAConstructionAlgorithm
 }
 
-pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
-    let proteins = get_proteins_from_database_file(&args.database_file);
-    // construct the sequence that will be used to build the tree
-
-    let u8_text = proteins.input_string.as_bytes();
-
-    let sa = libdivsufsort_rs::divsufsort64(&u8_text.to_vec()).ok_or("Building suffix array failed")?;
-
-    let mut current_protein_index: u32 = 0;
-    let mut suffix_index_to_protein: Vec<u32> = vec![];
-    for &char in u8_text.iter() {
-        if char == SEPARATION_CHARACTER || char == END_CHARACTER {
-            current_protein_index += 1;
-            suffix_index_to_protein.push(u32::NULL);
-        } else {
-            assert_ne!(current_protein_index, u32::NULL);
-            suffix_index_to_protein.push(current_protein_index);
-        }
-    }
-
+pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
+    let start_reading_proteins_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy);
+    println!("taxonomy calculator built");
+
+    let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator);
+
+    // construct the sequence that will be used to build the tree
+    println!("read all proteins");
+    let current = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+    println!("Time spent for reading: {}", current - start_reading_proteins_ms);
+
+    let sa = match &args.load_index {
+        // load SA from file
+        Some(index_file_name) => {
+            let start_loading_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+            let (sample_rate, sa) = load_binary(index_file_name)?;
+            args.sample_rate = sample_rate;
+            let end_loading_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards").as_nanos() as f64 * 1e-6;
+            println!("Loading the SA took {} ms and loading the proteins + SA took {} ms", end_loading_ms - start_loading_ms, end_loading_ms - start_reading_proteins_ms);
+            // TODO: some kind of security check that the loaded database file and SA match
+            sa
+        },
+        // build the SA
+        None => {
+            let mut sa = match &args.construction_algorithm {
+                SAConstructionAlgorithm::LibSais => libsais64_rs::sais64(&proteins.input_string),
+                SAConstructionAlgorithm::LibDivSufSort => libdivsufsort_rs::divsufsort64(&proteins.input_string)
+            }.ok_or("Building suffix array failed")?;
+            println!("SA constructed");
+
+            // make the SA sparse and decrease the vector size if we have sampling (== sampling_rate > 1)
+            if args.sample_rate > 1 {
+                let mut current_sampled_index = 0;
+                for i in 0..sa.len() {
+                    let current_sa_val = sa[i];
+                    if current_sa_val % args.sample_rate as i64 == 0 {
+                        sa[current_sampled_index] = current_sa_val;
+                        current_sampled_index += 1;
+                    }
+                }
+                // make shorter
+                sa.resize(current_sampled_index, 0);
+                println!("SA is sparse with sampling factor {}", args.sample_rate);
+            }
+            sa
+        }
+    };
 
     if let Some(output) = &args.output {
-        write_binary(&sa, u8_text, output).unwrap()
+        println!("storing index to file {}", output);
+        write_binary(args.sample_rate, &sa, &proteins.input_string, output).unwrap();
+        println!("Index written away");
     }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
@@ -88,7 +147,14 @@ pub fn run(args: Arguments) -> Result<(), Box<dyn Error>> {
         std::process::exit(1);
     }
 
-    let searcher = Searcher::new(u8_text, &sa, &suffix_index_to_protein, &proteins.proteins, &taxon_id_calculator);
+    // build the right mapping index, use box to be able to store both types in this variable
+    let suffix_index_to_protein: Box<dyn SuffixToProteinIndex> = match args.suffix_to_protein_mapping {
+        SuffixToProteinMappingStyle::Dense => Box::new(DenseSuffixToProtein::new(&proteins.input_string)),
+        SuffixToProteinMappingStyle::Sparse => Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+    };
+    println!("mapping built");
+
+    let searcher = Searcher::new(&sa, args.sample_rate, suffix_index_to_protein.as_ref(), &proteins, &taxon_id_calculator);
     execute_search(searcher, &proteins, &args);
     Ok(())
 }
@@ -141,13 +207,22 @@ fn handle_search_word(searcher: &mut Searcher, proteins: &Proteins, word: String
         None => word,
         Some(stripped) => String::from(stripped)
     }.to_uppercase();
+    // words that are shorter than the sample rate are not searchable
+    if word.len() < searcher.sample_rate as usize {
+        if verbose.is_some() {
+            verbose_output.push(format!("(word too short short for SA sample size);{};", word.len()));
+        } else {
+            println!("/ (word too short short for SA sample size)")
+        }
+        return;
+    }
 
     if let Some(num_iter) = verbose {
         let mut found_total: bool = false;
         let mut total_time: f64 = 0.0;
         for _ in 0..num_iter {
             let (found, execution_time) = match *search_mode {
-                SearchMode::Match =>  time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
+                SearchMode::Match => time_execution(searcher, &|searcher| searcher.search_if_match(word.as_bytes())),
                 SearchMode::MinMaxBound => time_execution(searcher, &|searcher| searcher.search_bounds(word.as_bytes()).0),
                 SearchMode::AllOccurrences => time_execution(searcher, &|searcher| !searcher.search_protein(word.as_bytes()).is_empty()),
                 SearchMode::TaxonId => time_execution(searcher, &|searcher| searcher.search_taxon_id(word.as_bytes()).is_some()),

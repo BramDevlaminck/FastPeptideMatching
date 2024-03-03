@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::sync::Arc;
 
 use axum::{http::StatusCode, Json, Router};
@@ -91,17 +92,17 @@ async fn calculate(
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let args = Arguments::parse();
     let Arguments {
         database_file,
         index_file,
         taxonomy,
     } = args;
-    let (sample_rate, sa) = load_binary(&index_file).unwrap();
+    let (sample_rate, sa) = load_binary(&index_file)?;
 
     let taxon_id_calculator = TaxonIdCalculator::new(&taxonomy, AggregationMethod::LcaStar);
-    let proteins = get_proteins_from_database_file(&database_file, &*taxon_id_calculator);
+    let proteins = get_proteins_from_database_file(&database_file, &*taxon_id_calculator)?;
     let suffix_index_to_protein = Box::new(SparseSuffixToProtein::new(&proteins.input_string));
 
     let searcher = Arc::new(Searcher::new(
@@ -124,6 +125,8 @@ async fn main() {
         .route("/search", post(calculate))
         .with_state(searcher);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    axum::serve(listener, app).await?;
+    
+    Ok(())
 }

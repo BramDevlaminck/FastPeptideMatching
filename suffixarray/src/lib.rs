@@ -84,7 +84,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy, AggregationMethod::LcaStar);
     // println!("taxonomy calculator built");
 
-    let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator);
+    let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator)?;
 
     // construct the sequence that will be used to build the tree
     // println!("read all proteins");

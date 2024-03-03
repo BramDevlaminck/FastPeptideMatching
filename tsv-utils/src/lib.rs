@@ -39,6 +39,7 @@ impl Proteins {
 /// The useful information about a protein for our use case
 pub struct Protein {
     pub uniprot_id: String,
+    pub description: String,
     pub sequence: (usize, u32),
     pub id: TaxonId,
 }
@@ -51,7 +52,7 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
     let lines = read_lines(database_file)?;
     for line in lines.into_iter().map_while(Result::ok) {
         let parts: Vec<&str> = line.splitn(6, '\t').collect();
-        let [uniprot_id, _, protein_id_str, _, _, protein_sequence]: [&str; 6] = parts.try_into().map_err(|_| DatabaseFormatError{})?;
+        let [uniprot_id, _, protein_id_str, _, description, protein_sequence]: [&str; 6] = parts.try_into().map_err(|_| DatabaseFormatError{})?;
         let protein_id_as_taxon_id = protein_id_str.parse::<TaxonId>()?;
         // if the taxon ID is not a valid ID in our NCBI taxonomy, skip this protein
         if !taxon_id_calculator.taxon_id_exists(protein_id_as_taxon_id) {
@@ -66,6 +67,7 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
         proteins.push(
             Protein {
                 uniprot_id: uniprot_id.to_string(),
+                description: description.to_string(),
                 sequence: (begin_index, protein_sequence.len() as u32),
                 id: protein_id_as_taxon_id,
             }
@@ -84,7 +86,7 @@ struct DatabaseFormatError;
 
 impl std::fmt::Display for DatabaseFormatError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Expected the protein database file to have the following fields separated by a tab: <Uniprot_id> <TODO> <TODO> <TODO> <description> <sequence>")
+        write!(f, "Expected the protein database file to have the following fields separated by a tab: <Uniprot_id> <TODO> <TODO> <TODO> <description> <sequence>") // TODO: fill in all the fields
     }
 }
 

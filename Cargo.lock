@@ -1413,6 +1413,7 @@ dependencies = [
  "libdivsufsort-rs",
  "libsais64-rs",
  "rayon",
+ "serde",
  "tsv-utils",
  "umgap",
 ]

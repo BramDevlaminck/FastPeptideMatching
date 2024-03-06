@@ -133,11 +133,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         proteins,
         *taxon_id_calculator,
     ));
-    println!("server is ready");
-
-    // initialize tracing
-    tracing_subscriber::fmt::init(); // TODO: figure out tracing and if we actually need the crate "tracing-subscriber"
-
+    
     // build our application with a route
     let app = Router::new()
         // `GET /` goes to `root`
@@ -148,6 +144,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     axum::serve(listener, app).await?;
+    println!("server is ready...");
 
     Ok(())
 }

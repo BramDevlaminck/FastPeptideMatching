@@ -10,7 +10,6 @@ axum = { version = "0.7.4", features = ["macros"] }
 serde = { version = "1.0.197", features = ["derive"] }
 tokio = { version = "1.36.0", features = ["rt", "rt-multi-thread", "macros"] }
 suffixarray = { path = "../suffixarray" }
-tracing-subscriber = "0.3.18"
 clap = { version = "4.5.1", features = ["derive"] }
 rayon = "1.8.1"
 tsv-utils = { path = "../tsv-utils"}

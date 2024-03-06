@@ -1,9 +1,9 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::routing::{get, post};
 use axum::{http::StatusCode, Json, Router};
+use axum::extract::{DefaultBodyLimit, State};
+use axum::routing::{get, post};
 use clap::Parser;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -142,8 +142,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         // `GET /` goes to `root`
         .route("/", get(root))
-        // `POST /search` goes to `calculate`
-        .route("/search", post(calculate))
+        // `POST /search` goes to `calculate` and set max payload size to 5 MB
+        .route("/search", post(calculate)).layer(DefaultBodyLimit::max(5 * 10_usize.pow(6)))
         .with_state(searcher);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;

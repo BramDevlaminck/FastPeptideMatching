@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::num::NonZeroUsize;
 
@@ -8,6 +9,7 @@ use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 use tsv_utils::{get_proteins_from_database_file, read_lines};
 
 use crate::binary::{load_binary, write_binary};
+use crate::functional_annotations::FunctionalAnnotations;
 use crate::searcher::Searcher;
 use crate::suffix_to_protein_index::{
     DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
@@ -18,18 +20,16 @@ pub mod binary;
 pub mod searcher;
 pub mod suffix_to_protein_index;
 pub mod util;
+pub mod functional_annotations;
 
-/// Enum that represents the 2 kinds of search that we support
-/// - Search until match and return boolean that indicates if there is a match
-/// - Search until match, if there is a match return the min and max index in the SA that matches
-/// - Search until match, if there is a match search the whole subtree to find all matching proteins
-/// - Search until match, there we can immediately retrieve the taxonId that represents all the children
+/// Enum that represents the 5 kinds of search that we support
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum SearchMode {
     Match,
     MinMaxBound,
     AllOccurrences,
     TaxonId,
+    Analyses
 }
 
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
@@ -49,6 +49,7 @@ pub struct Arguments {
     /// `all-occurrences` will search for the match and look for all the different matches in the subtree.
     /// `min-max-bound` will search for the match and retrieve the minimum and maximum index in the SA that contains a suffix that matches.
     /// `Taxon-id` will search for the matching taxon id using lca*
+    /// `Analyses` will return all the Unipept analyses results
     #[arg(short, long, value_enum)]
     mode: Option<SearchMode>,
     #[arg(short, long)]
@@ -250,6 +251,28 @@ pub fn handle_search_word(
 
             if let Some(id) = result {
                 format!("{id}")
+            } else {
+                "/".to_string()
+            }
+        }
+        SearchMode::Analyses => {
+            let suffixes = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
+            let result = if suffixes.len() >= cutoff {
+                Some((1, Vec::new(), FunctionalAnnotations::create_empty()))
+            } else {
+                let proteins = searcher.retrieve_proteins(&suffixes);
+                let id = searcher.retrieve_taxon_id(&proteins);
+                if let Some(id_unwrapped) = id {
+                    let uniprot_ids = FunctionalAnnotations::get_uniprot_ids(&proteins);
+                    let annotations = FunctionalAnnotations::new(&proteins);
+                    Some((id_unwrapped, uniprot_ids, annotations))
+                } else {
+                    None
+                }
+            };
+
+            if let Some((id, uniprot_ids, annotations)) = result {
+                format!("{id};{:?};{:?}", uniprot_ids, annotations)
             } else {
                 "/".to_string()
             }

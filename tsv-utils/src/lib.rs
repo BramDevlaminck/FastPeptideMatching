@@ -65,7 +65,6 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
     let lines = read_lines(database_file)?;
     for line in lines.into_iter().map_while(Result::ok) {
         let parts: Vec<String> = line.split('\t').map(str::to_string).collect();
-        // TODO: description field is wrong, what is called description here is actually the protein name
         let [_unipept_id, uniprot_id, _, protein_id_str, _, _protein_name, protein_sequence, ec_numbers, go_terms, inter_pros]: [String; 10] = parts.try_into().map_err(|e| DatabaseFormatError{ error: e})?;
         let protein_id_as_taxon_id = protein_id_str.parse::<TaxonId>()?;
         // if the taxon ID is not a valid ID in our NCBI taxonomy, skip this protein

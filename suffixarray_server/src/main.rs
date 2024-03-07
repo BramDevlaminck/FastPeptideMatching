@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -9,7 +10,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use suffixarray::binary::load_binary;
-use suffixarray::functional_annotations::FunctionalAnnotations;
+use suffixarray::functional_annotations::{FunctionalAnnotationsCounts, PeptideSearchResult};
 use suffixarray::searcher::Searcher;
 use suffixarray::suffix_to_protein_index::SparseSuffixToProtein;
 use tsv_utils::get_proteins_from_database_file;
@@ -29,14 +30,19 @@ pub struct Arguments {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct InputData {
-    // Define your input JSON structure
     peptides: Vec<String>,
+    cutoff: Option<usize>
 }
 
 #[derive(Debug, Serialize)]
 struct OutputData {
-    // Define your output JSON structure
     result: Vec<SearchResult>,
+}
+
+#[derive(Debug, Serialize)]
+struct FunctionalAnnotations {
+    counts: FunctionalAnnotationsCounts,
+    data: HashMap<String, u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -44,6 +50,9 @@ struct SearchResult {
     sequence: String,
     lca: usize,
     fa: FunctionalAnnotations,
+    taxa: Vec<usize>,
+    uniprot_ids: Vec<String>,
+    cutoff_used: bool
 }
 
 // basic handler that responds with a static string
@@ -56,7 +65,7 @@ pub fn search_peptide(
     searcher: &Searcher,
     word: &str,
     cutoff: usize,
-) -> Option<(usize, FunctionalAnnotations)> {
+) -> Option<(usize, bool, PeptideSearchResult)> {
     let word = word.to_uppercase();
 
     // words that are shorter than the sample rate are not searchable
@@ -64,19 +73,14 @@ pub fn search_peptide(
         return None;
     }
 
-    let suffixes = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
-
-    if suffixes.len() >= cutoff {
-        Some((1, FunctionalAnnotations::default()))
+    let (cutoff_used, suffixes) = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
+    let proteins = searcher.retrieve_proteins(&suffixes);
+    let annotations = PeptideSearchResult::new(&proteins);
+    if cutoff_used {
+        Some((1, cutoff_used, annotations))
     } else {
-        let proteins = searcher.retrieve_proteins(&suffixes);
         let id = searcher.retrieve_taxon_id(&proteins);
-        if let Some(id_unwrapped) = id {
-            let annotations = FunctionalAnnotations::new(&proteins);
-            Some((id_unwrapped, annotations))
-        } else {
-            None
-        }
+        id.map(|id_unwrapped| (id_unwrapped, cutoff_used, annotations))
     }
 }
 
@@ -84,21 +88,27 @@ async fn calculate(
     State(searcher): State<Arc<Searcher>>,
     data: Json<InputData>,
 ) -> Result<Json<OutputData>, StatusCode> {
+    
+    let cutoff = data.cutoff.unwrap_or(10000);
+    
     let res: Vec<SearchResult> = data
         .peptides
         .par_iter()
         // calculate the results
-        .map(|peptide| search_peptide(&searcher, peptide, 10000))
+        .map(|peptide| search_peptide(&searcher, peptide, cutoff))
         .enumerate()
         // remove the peptides that did not match any proteins
         .filter(|(_, search_result)| search_result.is_some())
         // transform search results into output
         .map(|(index, search_results)| {
-            let (taxon_id, functional_annotations) = search_results.unwrap();
+            let (taxon_id, cutoff_used, pept_results) = search_results.unwrap();
             SearchResult {
                 sequence: data.peptides[index].clone(),
                 lca: taxon_id,
-                fa: functional_annotations,
+                fa: FunctionalAnnotations { counts: pept_results.counts, data: pept_results.data },
+                taxa: pept_results.taxa,
+                uniprot_ids: pept_results.uniprot_ids,
+                cutoff_used
             }
         })
         .collect();

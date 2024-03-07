@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::collections::HashMap;
+use umgap::taxon::TaxonId;
 use tsv_utils::Protein;
 
 #[derive(Debug, Serialize, Default)]
@@ -20,16 +21,17 @@ impl FunctionalAnnotationsCounts {
             IPR: ipr_counts
         }
     }
-} 
-
-#[derive(Debug, Serialize, Default)]
-pub struct FunctionalAnnotations {
-    counts: FunctionalAnnotationsCounts,
-    data: HashMap<String, u64>,
-    uniprot_ids: Vec<String>
 }
 
-impl FunctionalAnnotations {
+#[derive(Debug, Default)]
+pub struct PeptideSearchResult {
+    pub counts: FunctionalAnnotationsCounts,
+    pub data: HashMap<String, u64>,
+    pub uniprot_ids: Vec<String>,
+    pub taxa: Vec<TaxonId>
+}
+
+impl PeptideSearchResult {
 
     fn count_occurrences(mapping: &mut HashMap<String, u64>, values: &Vec<String>) {
         for val in values {
@@ -48,12 +50,13 @@ impl FunctionalAnnotations {
         let mut ipr_counts: u64 = 0;
 
         let mut uniprot_ids = vec![];
+        let mut taxa = vec![];
 
         for &protein in proteins {
             Self::count_occurrences(&mut annotations_aggregate, &protein.ec_numbers);
             Self::count_occurrences(&mut annotations_aggregate, &protein.go_terms);
             Self::count_occurrences(&mut annotations_aggregate, &protein.interpro);
-            
+
             // count the number of proteins that have an annotation
             let mut has_annotation = false;
             if !protein.ec_numbers.is_empty() {
@@ -72,13 +75,15 @@ impl FunctionalAnnotations {
                 all_counts += 1;
             }
             
+            taxa.push(protein.id);
             uniprot_ids.push(protein.uniprot_id.clone());
         }
-        
+
         Self {
             counts: FunctionalAnnotationsCounts::new(all_counts, ec_counts, go_counts, ipr_counts),
             data: annotations_aggregate,
-            uniprot_ids
+            uniprot_ids,
+            taxa
         }
     }
 }

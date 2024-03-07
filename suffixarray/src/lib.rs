@@ -9,7 +9,7 @@ use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 use tsv_utils::{get_proteins_from_database_file, read_lines};
 
 use crate::binary::{load_binary, write_binary};
-use crate::functional_annotations::FunctionalAnnotations;
+use crate::functional_annotations::PeptideSearchResult;
 use crate::searcher::Searcher;
 use crate::suffix_to_protein_index::{
     DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
@@ -241,8 +241,8 @@ pub fn handle_search_word(
             format!("{peptide_length};{number_of_proteins};") // TODO: return all the matching protein strings perhaps?
         }
         SearchMode::TaxonId => {
-            let suffixes = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
-            let result = if suffixes.len() >= cutoff {
+            let (cutoff_used, suffixes) = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
+            let result = if cutoff_used {
                 Some(1)
             } else {
                 let proteins = searcher.retrieve_proteins(&suffixes);
@@ -256,18 +256,14 @@ pub fn handle_search_word(
             }
         }
         SearchMode::Analyses => {
-            let suffixes = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
-            let result = if suffixes.len() >= cutoff {
-                Some((1, FunctionalAnnotations::default()))
+            let (cutoff_used, suffixes) = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
+            let proteins = searcher.retrieve_proteins(&suffixes);
+            let annotations = PeptideSearchResult::new(&proteins);
+            let result = if cutoff_used {
+                Some((1, annotations))
             } else {
-                let proteins = searcher.retrieve_proteins(&suffixes);
                 let id = searcher.retrieve_taxon_id(&proteins);
-                if let Some(id_unwrapped) = id {
-                    let annotations = FunctionalAnnotations::new(&proteins);
-                    Some((id_unwrapped, annotations))
-                } else {
-                    None
-                }
+                id.map(|id_unwrapped| (id_unwrapped, annotations))
             };
 
             if let Some((id, annotations)) = result {

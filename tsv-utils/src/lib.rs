@@ -65,7 +65,7 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
     let lines = read_lines(database_file)?;
     for line in lines.into_iter().map_while(Result::ok) {
         let parts: Vec<String> = line.split('\t').map(str::to_string).collect();
-        let [_unipept_id, uniprot_id, _, protein_id_str, _, _protein_name, protein_sequence, ec_numbers, go_terms, inter_pros]: [String; 10] = parts.try_into().map_err(|e| DatabaseFormatError{ error: e})?;
+        let [_unipept_id, uniprot_id, _, protein_id_str, _uniprot_partition, _protein_name, protein_sequence, ec_numbers, go_terms, inter_pros]: [String; 10] = parts.try_into().map_err(|e| DatabaseFormatError{ error: e})?;
         let protein_id_as_taxon_id = protein_id_str.parse::<TaxonId>()?;
         // if the taxon ID is not a valid ID in our NCBI taxonomy, skip this protein
         if !taxon_id_calculator.taxon_id_exists(protein_id_as_taxon_id) {
@@ -103,7 +103,7 @@ struct DatabaseFormatError {
 
 impl std::fmt::Display for DatabaseFormatError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Expected the protein database file to have the following fields separated by a tab: <unipept id> <Uniprot_id> <TODO> <protein id> <TODO> <protein_name> <sequence> <ec numbers> <go_terms> <inter_pros>.\n The given error is: {:?}", self.error) // TODO: fill in all the fields
+        write!(f, "Expected the protein database file to have the following fields separated by a tab: <unipept id> <Uniprot_id> <TODO> <protein id> <swissprot | tremble> <protein_name> <sequence> <ec numbers> <go_terms> <inter_pros>.\n The given error is: {:?}", self.error) // TODO: fill in all the fields
     }
 }
 

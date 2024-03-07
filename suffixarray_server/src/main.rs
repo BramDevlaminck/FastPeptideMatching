@@ -41,10 +41,9 @@ struct OutputData {
 
 #[derive(Debug, Serialize)]
 struct SearchResult {
-    peptide: String,
-    taxon_id: usize,
-    proteins: Vec<String>,
-    functional_annotations: FunctionalAnnotations,
+    sequence: String,
+    lca: usize,
+    fa: FunctionalAnnotations,
 }
 
 // basic handler that responds with a static string
@@ -57,7 +56,7 @@ pub fn search_peptide(
     searcher: &Searcher,
     word: &str,
     cutoff: usize,
-) -> Option<(usize, Vec<String>, FunctionalAnnotations)> {
+) -> Option<(usize, FunctionalAnnotations)> {
     let word = word.to_uppercase();
 
     // words that are shorter than the sample rate are not searchable
@@ -68,14 +67,13 @@ pub fn search_peptide(
     let suffixes = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
 
     if suffixes.len() >= cutoff {
-        Some((1, Vec::new(), FunctionalAnnotations::create_empty()))
+        Some((1, FunctionalAnnotations::default()))
     } else {
         let proteins = searcher.retrieve_proteins(&suffixes);
         let id = searcher.retrieve_taxon_id(&proteins);
         if let Some(id_unwrapped) = id {
-            let uniprot_ids = FunctionalAnnotations::get_uniprot_ids(&proteins);
             let annotations = FunctionalAnnotations::new(&proteins);
-            Some((id_unwrapped, uniprot_ids, annotations))
+            Some((id_unwrapped, annotations))
         } else {
             None
         }
@@ -96,12 +94,11 @@ async fn calculate(
         .filter(|(_, search_result)| search_result.is_some())
         // transform search results into output
         .map(|(index, search_results)| {
-            let (taxon_id, proteins, functional_annotations) = search_results.unwrap();
+            let (taxon_id, functional_annotations) = search_results.unwrap();
             SearchResult {
-                peptide: data.peptides[index].clone(),
-                taxon_id,
-                proteins,
-                functional_annotations,
+                sequence: data.peptides[index].clone(),
+                lca: taxon_id,
+                fa: functional_annotations,
             }
         })
         .collect();
@@ -133,7 +130,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         proteins,
         *taxon_id_calculator,
     ));
-    
+
     // build our application with a route
     let app = Router::new()
         // `GET /` goes to `root`
@@ -143,8 +140,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_state(searcher);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    axum::serve(listener, app).await?;
     println!("server is ready...");
+    axum::serve(listener, app).await?;
 
     Ok(())
 }

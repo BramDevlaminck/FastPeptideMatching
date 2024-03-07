@@ -258,21 +258,20 @@ pub fn handle_search_word(
         SearchMode::Analyses => {
             let suffixes = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
             let result = if suffixes.len() >= cutoff {
-                Some((1, Vec::new(), FunctionalAnnotations::create_empty()))
+                Some((1, FunctionalAnnotations::default()))
             } else {
                 let proteins = searcher.retrieve_proteins(&suffixes);
                 let id = searcher.retrieve_taxon_id(&proteins);
                 if let Some(id_unwrapped) = id {
-                    let uniprot_ids = FunctionalAnnotations::get_uniprot_ids(&proteins);
                     let annotations = FunctionalAnnotations::new(&proteins);
-                    Some((id_unwrapped, uniprot_ids, annotations))
+                    Some((id_unwrapped, annotations))
                 } else {
                     None
                 }
             };
 
-            if let Some((id, uniprot_ids, annotations)) = result {
-                format!("{id};{:?};{:?}", uniprot_ids, annotations)
+            if let Some((id, annotations)) = result {
+                format!("{id};;{:?}", annotations)
             } else {
                 "/".to_string()
             }

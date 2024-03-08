@@ -9,10 +9,10 @@ use clap::Parser;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use suffixarray::binary::load_binary;
 use suffixarray::functional_annotations::{FunctionalAnnotationsCounts, PeptideSearchResult};
 use suffixarray::searcher::Searcher;
 use suffixarray::suffix_to_protein_index::SparseSuffixToProtein;
+use suffixarray_builder::binary::load_binary;
 use tsv_utils::get_proteins_from_database_file;
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 

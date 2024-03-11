@@ -53,24 +53,22 @@ impl PeptideSearchResult {
         let mut taxa = vec![];
 
         for &protein in proteins {
-            Self::count_occurrences(&mut annotations_aggregate, &protein.ec_numbers);
-            Self::count_occurrences(&mut annotations_aggregate, &protein.go_terms);
-            Self::count_occurrences(&mut annotations_aggregate, &protein.interpro);
-
+            Self::count_occurrences(&mut annotations_aggregate, &protein.annotations); // TODO: possibly could precalculate this per protein, but will need extra memory
             // count the number of proteins that have an annotation
             let mut has_annotation = false;
-            if !protein.ec_numbers.is_empty() {
-                ec_counts += 1;
-                has_annotation = true;
+            for annotation in &protein.annotations {
+                if annotation.starts_with("GO") {
+                    go_counts += 1;
+                    has_annotation = true;
+                } else if annotation.starts_with("IPR") {
+                    ipr_counts += 1;
+                    has_annotation = true;
+                } else { // TODO: when tsv input is fixed, we should do `else if annotation.starts_with("EC")`
+                    ec_counts += 1;
+                    has_annotation = true;
+                }
             }
-            if !protein.go_terms.is_empty() {
-                go_counts += 1;
-                has_annotation = true;
-            }
-            if !protein.interpro.is_empty() {
-                ipr_counts += 1;
-                has_annotation = true;
-            }
+            
             if has_annotation {
                 all_counts += 1;
             }

@@ -41,18 +41,14 @@ pub struct Protein {
     pub uniprot_id: String,
     pub sequence: (usize, u32),
     pub id: TaxonId,
-    pub ec_numbers: Vec<String>,
-    pub go_terms: Vec<String>,
-    pub interpro: Vec<String>
+    pub annotations: Vec<String>,
 }
 
 /// Aid function that splits the input string on ';' as separator and returns a vector with the resulting strings
-fn csv_split(data: String) -> Vec<String> {
+fn parse_annotations(vec: &mut Vec<String>, data: String) {
     // empty string should return empty vector, and not vector with empty string inside it
-    if data.is_empty() {
-        Vec::new()
-    } else {
-        data.split(';').map(str::to_string).collect()
+    if !data.is_empty() {
+        vec.extend(data.split(';').map(str::to_string))
     }
 }
 
@@ -77,14 +73,17 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
             input_string.push(SEPARATION_CHARACTER as char);
         }
         input_string.push_str(&protein_sequence.to_uppercase());
+        
+        let mut annotations_vec = vec![];
+        parse_annotations(&mut annotations_vec, ec_numbers);
+        parse_annotations(&mut annotations_vec, go_terms);
+        parse_annotations(&mut annotations_vec, inter_pros);
         proteins.push(
             Protein {
                 uniprot_id,
                 sequence: (begin_index, protein_sequence.len() as u32),
                 id: protein_id_as_taxon_id,
-                ec_numbers: csv_split(ec_numbers),
-                go_terms: csv_split(go_terms),
-                interpro: csv_split(inter_pros)
+                annotations: annotations_vec
             }
         );
         begin_index += protein_sequence.len() + 1;
@@ -111,17 +110,21 @@ impl Error for DatabaseFormatError {}
 
 #[cfg(test)]
 mod tests {
-    use crate::csv_split;
+    use crate::parse_annotations;
 
     #[test]
     fn test_csv_split() {
         let data = "a;ab;abc;abcd".to_string();
-        assert_eq!(vec!["a", "ab", "abc", "abcd"], csv_split(data));
+        let mut annotations_vec = vec![];
+        parse_annotations(&mut annotations_vec, data);
+        assert_eq!(vec!["a", "ab", "abc", "abcd"], annotations_vec);
     }
 
     #[test]
     fn test_csv_split_empty() {
         let data = String::new();
-        assert_eq!(vec![] as Vec<String>, csv_split(data));
+        let mut annotations_vec = vec![];
+        parse_annotations(&mut annotations_vec, data);
+        assert_eq!(vec![] as Vec<String>, annotations_vec);
     }
 }

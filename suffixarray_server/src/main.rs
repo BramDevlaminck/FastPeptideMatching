@@ -127,31 +127,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
         index_file,
         taxonomy,
     } = args;
-    // let (sample_rate, sa) = load_binary(&index_file)?;
+    let (sample_rate, sa) = load_binary(&index_file)?;
 
     let taxon_id_calculator = TaxonIdCalculator::new(&taxonomy, AggregationMethod::LcaStar);
     let proteins = get_proteins_from_database_file(&database_file, &*taxon_id_calculator)?;
     let suffix_index_to_protein = Box::new(SparseSuffixToProtein::new(&proteins.input_string));
 
-    // let searcher = Arc::new(Searcher::new(
-    //     sa,
-    //     sample_rate,
-    //     suffix_index_to_protein,
-    //     proteins,
-    //     *taxon_id_calculator,
-    // ));
-    // 
-    // // build our application with a route
-    // let app = Router::new()
-    //     // `GET /` goes to `root`
-    //     .route("/", get(root))
-    //     // `POST /search` goes to `calculate` and set max payload size to 5 MB
-    //     .route("/search", post(calculate)).layer(DefaultBodyLimit::max(5 * 10_usize.pow(6)))
-    //     .with_state(searcher);
-    // 
-    // let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    // println!("server is ready...");
-    // axum::serve(listener, app).await?;
+    let searcher = Arc::new(Searcher::new(
+        sa,
+        sample_rate,
+        suffix_index_to_protein,
+        proteins,
+        *taxon_id_calculator,
+    ));
+    
+    // build our application with a route
+    let app = Router::new()
+        // `GET /` goes to `root`
+        .route("/", get(root))
+        // `POST /search` goes to `calculate` and set max payload size to 5 MB
+        .route("/search", post(calculate)).layer(DefaultBodyLimit::max(5 * 10_usize.pow(6)))
+        .with_state(searcher);
+    
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    println!("server is ready...");
+    axum::serve(listener, app).await?;
 
     Ok(())
 }

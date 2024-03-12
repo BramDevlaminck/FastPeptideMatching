@@ -569,12 +569,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "get-size"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47b61e2dab7eedce93a83ab3468b919873ff16bac5a3e704011ff836d22b2120"
-
-[[package]]
 name = "gimli"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1384,13 +1378,21 @@ name = "suffixarray"
 version = "0.1.0"
 dependencies = [
  "clap 4.5.1",
- "get-size",
- "libdivsufsort-rs",
- "libsais64-rs",
  "rayon",
  "serde",
+ "suffixarray_builder",
  "tsv-utils",
  "umgap",
+]
+
+[[package]]
+name = "suffixarray_builder"
+version = "0.1.0"
+dependencies = [
+ "clap 4.5.1",
+ "libdivsufsort-rs",
+ "libsais64-rs",
+ "tsv-utils",
 ]
 
 [[package]]
@@ -1402,6 +1404,7 @@ dependencies = [
  "rayon",
  "serde",
  "suffixarray",
+ "suffixarray_builder",
  "tokio",
  "tsv-utils",
 ]

@@ -41,21 +41,7 @@ pub struct Protein {
     pub uniprot_id: String,
     pub sequence: (usize, u32),
     pub id: TaxonId,
-    pub ec_numbers: Vec<String>,
-    pub go_terms: Vec<String>,
-    pub interpro: Vec<String>
 }
-
-/// Aid function that splits the input string on ';' as separator and returns a vector with the resulting strings
-fn csv_split(data: String) -> Vec<String> {
-    // empty string should return empty vector, and not vector with empty string inside it
-    if data.is_empty() {
-        Vec::new()
-    } else {
-        data.split(';').map(str::to_string).collect()
-    }
-}
-
 
 /// Parse the given database tsv file into a Vector of Proteins with the data from the tsv file
 pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator: &dyn TaxonIdVerifier) -> Result<Proteins, Box<dyn Error>> {
@@ -65,7 +51,7 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
     let lines = read_lines(database_file)?;
     for line in lines.into_iter().map_while(Result::ok) {
         let parts: Vec<String> = line.split('\t').map(str::to_string).collect();
-        let [_unipept_id, uniprot_id, _, protein_id_str, _uniprot_partition, _protein_name, protein_sequence, ec_numbers, go_terms, inter_pros]: [String; 10] = parts.try_into().map_err(|e| DatabaseFormatError{ error: e})?;
+        let [uniprot_id, protein_id_str, protein_sequence]: [String; 3] = parts.try_into().map_err(|e| DatabaseFormatError{ error: e})?;
         let protein_id_as_taxon_id = protein_id_str.parse::<TaxonId>()?;
         // if the taxon ID is not a valid ID in our NCBI taxonomy, skip this protein
         if !taxon_id_calculator.taxon_id_exists(protein_id_as_taxon_id) {
@@ -82,9 +68,6 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
                 uniprot_id,
                 sequence: (begin_index, protein_sequence.len() as u32),
                 id: protein_id_as_taxon_id,
-                ec_numbers: csv_split(ec_numbers),
-                go_terms: csv_split(go_terms),
-                interpro: csv_split(inter_pros)
             }
         );
         begin_index += protein_sequence.len() + 1;
@@ -96,6 +79,31 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
     })
 }
 
+/// Parse the given database tsv file into a String that has all the proteins concatenated as 1 large text
+pub fn get_text_from_database_file(database_file: &str, taxon_id_calculator: &dyn TaxonIdVerifier) -> Result<String, Box<dyn Error>> {
+    let mut input_string: String = String::new();
+    let mut begin_index: usize = 0;
+    let lines = read_lines(database_file)?;
+    for line in lines.into_iter().map_while(Result::ok) {
+        let parts: Vec<String> = line.split('\t').map(str::to_string).collect();
+        let [_uniprot_id, protein_id_str, protein_sequence]: [String; 3] = parts.try_into().map_err(|e| DatabaseFormatError{ error: e})?;
+        let protein_id_as_taxon_id = protein_id_str.parse::<TaxonId>()?;
+        // if the taxon ID is not a valid ID in our NCBI taxonomy, skip this protein
+        if !taxon_id_calculator.taxon_id_exists(protein_id_as_taxon_id) {
+            // eprintln!("Skipped protein with taxon id {}!", protein_id_as_taxon_id);
+            continue;
+        }
+
+        if begin_index != 0 {
+            input_string.push(SEPARATION_CHARACTER as char);
+        }
+        input_string.push_str(&protein_sequence.to_uppercase());
+        begin_index += protein_sequence.len() + 1;
+    }
+    input_string.push(END_CHARACTER as char);
+    Ok(input_string)
+}
+
 #[derive(Debug)]
 struct DatabaseFormatError {
     error: Vec<String>
@@ -103,25 +111,8 @@ struct DatabaseFormatError {
 
 impl std::fmt::Display for DatabaseFormatError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Expected the protein database file to have the following fields separated by a tab: <unipept id> <Uniprot_id> <TODO> <protein id> <swissprot | tremble> <protein_name> <sequence> <ec numbers> <go_terms> <inter_pros>.\n The given error is: {:?}", self.error) // TODO: fill in all the fields
+        write!(f, "Expected the protein database file to have the following fields separated by a tab: <Uniprot_accession> <protein id> <sequence>\nBut tried to unpack following vector in 3 variables: {:?}", self.error)
     }
 }
 
 impl Error for DatabaseFormatError {}
-
-#[cfg(test)]
-mod tests {
-    use crate::csv_split;
-
-    #[test]
-    fn test_csv_split() {
-        let data = "a;ab;abc;abcd".to_string();
-        assert_eq!(vec!["a", "ab", "abc", "abcd"], csv_split(data));
-    }
-
-    #[test]
-    fn test_csv_split_empty() {
-        let data = String::new();
-        assert_eq!(vec![] as Vec<String>, csv_split(data));
-    }
-}

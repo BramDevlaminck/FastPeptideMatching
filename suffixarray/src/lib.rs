@@ -1,27 +1,23 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::num::NonZeroUsize;
 
 use clap::{arg, Parser, ValueEnum};
 use rayon::prelude::*;
+use suffixarray_builder::{build_sa, SAConstructionAlgorithm};
+use suffixarray_builder::binary::{load_binary, write_binary};
 
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 use tsv_utils::{get_proteins_from_database_file, read_lines};
 
-use crate::binary::{load_binary, write_binary};
-use crate::functional_annotations::PeptideSearchResult;
 use crate::searcher::Searcher;
 use crate::suffix_to_protein_index::{
     DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
 };
 use crate::util::get_time_ms;
 
-pub mod binary;
 pub mod searcher;
 pub mod suffix_to_protein_index;
 pub mod util;
-pub mod functional_annotations;
-
 /// Enum that represents the 5 kinds of search that we support
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum SearchMode {
@@ -30,12 +26,6 @@ pub enum SearchMode {
     AllOccurrences,
     TaxonId,
     Analyses
-}
-
-#[derive(ValueEnum, Clone, Debug, PartialEq)]
-pub enum SAConstructionAlgorithm {
-    LibDivSufSort,
-    LibSais,
 }
 
 #[derive(Parser, Debug)]
@@ -105,30 +95,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         }
         // build the SA
         None => {
-            let mut sa = match &args.construction_algorithm {
-                SAConstructionAlgorithm::LibSais => libsais64_rs::sais64(&proteins.input_string),
-                SAConstructionAlgorithm::LibDivSufSort => {
-                    libdivsufsort_rs::divsufsort64(&proteins.input_string)
-                }
-            }
-            .ok_or("Building suffix array failed")?;
-            // println!("SA constructed");
-
-            // make the SA sparse and decrease the vector size if we have sampling (== sampling_rate > 1)
-            if args.sample_rate > 1 {
-                let mut current_sampled_index = 0;
-                for i in 0..sa.len() {
-                    let current_sa_val = sa[i];
-                    if current_sa_val % args.sample_rate as i64 == 0 {
-                        sa[current_sampled_index] = current_sa_val;
-                        current_sampled_index += 1;
-                    }
-                }
-                // make shorter
-                sa.resize(current_sampled_index, 0);
-                // println!("SA is sparse with sampling factor {}", args.sample_rate);
-            }
-            sa
+            build_sa(&proteins.input_string, &args.construction_algorithm, args.sample_rate)?
         }
     };
 
@@ -195,7 +162,7 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
     all_peptides
         .par_iter()
         // calculate the results
-        .map(|peptide| handle_search_word(searcher, peptide, mode, cutoff))
+        .map(|peptide| search_peptide(searcher, peptide, mode, cutoff))
         // output the results, collect is needed to store order so the output is in the right sequential order
         .collect::<Vec<String>>()// TODO: this collect that makes the output again sequential is possibly unneeded since we also output the corresponding peptide (but make sure this still makes the right peptide;taxon-id mapping)
         .iter()
@@ -214,7 +181,7 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
 }
 
 /// Executes the kind of search indicated by the commandline arguments
-pub fn handle_search_word(
+pub fn search_peptide(
     searcher: &Searcher,
     word: &str,
     search_mode: &SearchMode,
@@ -246,7 +213,7 @@ pub fn handle_search_word(
                 Some(1)
             } else {
                 let proteins = searcher.retrieve_proteins(&suffixes);
-                searcher.retrieve_taxon_id(&proteins)
+                searcher.retrieve_lca(&proteins)
             };
 
             if let Some(id) = result {
@@ -258,16 +225,15 @@ pub fn handle_search_word(
         SearchMode::Analyses => {
             let (cutoff_used, suffixes) = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
             let proteins = searcher.retrieve_proteins(&suffixes);
-            let annotations = PeptideSearchResult::new(&proteins);
             let result = if cutoff_used {
-                Some((1, annotations))
+                Some(1)
             } else {
-                let id = searcher.retrieve_taxon_id(&proteins);
-                id.map(|id_unwrapped| (id_unwrapped, annotations))
+                searcher.retrieve_lca(&proteins)
             };
 
-            if let Some((id, annotations)) = result {
-                format!("{id};;{:?}", annotations)
+            if let Some(id) = result {
+                let annotations = Searcher::get_uniprot_and_taxa_ids(&proteins);
+                format!("{id};{:?}", annotations)
             } else {
                 "/".to_string()
             }

@@ -42,7 +42,7 @@ struct SearchResult {
     sequence: String,
     lca: usize,
     taxa: Vec<usize>,
-    uniprot_accession: Vec<String>,
+    uniprot_accessions: Vec<String>,
     cutoff_used: bool
 }
 
@@ -98,7 +98,7 @@ async fn search(
                 sequence: data.peptides[index].clone(),
                 lca: taxon_id,
                 taxa,
-                uniprot_accession: uniprot_acc,
+                uniprot_accessions: uniprot_acc,
                 cutoff_used
             }
         })

@@ -250,33 +250,21 @@ mod test {
                 uniprot_id: "Q0".to_string(),
                 sequence: (0, 3),
                 id: 10,
-                ec_numbers: vec![],
-                go_terms: vec![],
-                interpro: vec![],
             },
             Protein {
                 uniprot_id: "Q1".to_string(),
                 sequence: (4, 7),
                 id: 9,
-                ec_numbers: vec![],
-                go_terms: vec![],
-                interpro: vec![],
             },
             Protein {
                 uniprot_id: "Q2".to_string(),
                 sequence: (8, 11),
                 id: 20,
-                ec_numbers: vec![],
-                go_terms: vec![],
-                interpro: vec![],
             },
             Protein {
                 uniprot_id: "Q3".to_string(),
                 sequence: (12, 13),
                 id: 2,
-                ec_numbers: vec![],
-                go_terms: vec![],
-                interpro: vec![],
             },
         ];
 

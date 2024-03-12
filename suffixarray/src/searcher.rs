@@ -222,7 +222,7 @@ impl Searcher {
     }
 
     #[inline]
-    pub fn retrieve_taxon_id(&self, proteins: &[&Protein]) -> Option<TaxonId> {
+    pub fn retrieve_lca(&self, proteins: &[&Protein]) -> Option<TaxonId> {
         let taxon_ids: Vec<TaxonId> = proteins.iter().map(|prot| prot.id).collect();
         match taxon_ids.is_empty() {
             true => None,
@@ -230,8 +230,21 @@ impl Searcher {
         }
     }
 
-    pub fn search_taxon_id(&self, search_string: &[u8]) -> Option<TaxonId> {
-        self.retrieve_taxon_id(&self.search_protein(search_string))
+    /// Fetch the UniProt accession and taxa for all the proteins
+    pub fn get_uniprot_and_taxa_ids(proteins: &[&Protein]) -> (Vec<String>, Vec<TaxonId>) {
+        let mut uniprot_ids = vec![];
+        let mut taxa = vec![];
+
+        for &protein in proteins {
+            taxa.push(protein.id);
+            uniprot_ids.push(protein.uniprot_id.clone());
+        }
+
+        (uniprot_ids, taxa)
+    }
+
+    pub fn search_lca(&self, search_string: &[u8]) -> Option<TaxonId> {
+        self.retrieve_lca(&self.search_protein(search_string))
     }
 
 }

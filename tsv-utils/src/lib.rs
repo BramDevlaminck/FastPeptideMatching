@@ -1,4 +1,5 @@
 pub mod taxon_id_calculator;
+pub mod il_equality;
 
 use std::error::Error;
 use std::fs::File;
@@ -6,6 +7,7 @@ use std::io;
 use std::io::BufRead;
 use std::path::Path;
 use umgap::taxon::TaxonId;
+use crate::il_equality::ILEquality;
 use crate::taxon_id_calculator::{TaxonIdVerifier};
 
 // END_CHARACTER should ALWAYS be lexicographically than SEPARATION_CHARACTER
@@ -62,7 +64,7 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
         if begin_index != 0 {
             input_string.push(SEPARATION_CHARACTER as char);
         }
-        input_string.push_str(&protein_sequence.to_uppercase());
+        input_string.push_str(&protein_sequence.to_uppercase().switch_lj()); // switch l and j to make it possible to make i and j equal in search
         proteins.push(
             Protein {
                 uniprot_id,

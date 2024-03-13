@@ -1,6 +1,7 @@
 use std::cmp::{min};
 use umgap::taxon::TaxonId;
 use tsv_utils::{Protein, Proteins};
+use tsv_utils::il_equality::il_equality;
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use crate::Nullable;
 use crate::suffix_to_protein_index::SuffixToProteinIndex;
@@ -25,14 +26,14 @@ impl Searcher {
         }
     }
 
-    fn compare(&self, search_string: &[u8], suffix: i64, skip: usize, compare_fn: fn(usize, usize) -> bool) -> (bool, usize) {
+    fn compare(&self, search_string: &[u8], suffix: i64, skip: usize, compare_fn: fn(u8, u8, bool) -> bool, i_and_l_equal: bool) -> (bool, usize) {
         let mut index = (suffix as usize) + skip;
         let mut index_in_search_string = skip;
         let mut is_cond_or_equal = false;
         // match as long as possible
         while index_in_search_string < search_string.len()
             && index < self.proteins.input_string.len()
-            && search_string[index_in_search_string] == self.proteins.input_string[index] {
+            && il_equality(search_string[index_in_search_string], self.proteins.input_string[index], i_and_l_equal) {
             index += 1;
             index_in_search_string += 1;
         }
@@ -40,15 +41,44 @@ impl Searcher {
         if !search_string.is_empty()
             && (
             index_in_search_string == search_string.len()
-            || (index < self.proteins.input_string.len() && compare_fn(search_string[index_in_search_string] as usize, self.proteins.input_string[index] as usize))
+            || (index < self.proteins.input_string.len() && compare_fn(search_string[index_in_search_string], self.proteins.input_string[index], i_and_l_equal))
         ) {
+            let _search_val = search_string[index_in_search_string];
+            let _index_val = self.proteins.input_string[index];
             is_cond_or_equal = true;
         }
         (is_cond_or_equal, index_in_search_string)
     }
 
+    #[inline]
+    fn smaller_than(a: u8, b: u8, i_and_l_equal: bool) -> bool {
+        if i_and_l_equal {
+            if (a == b'I' || a == b'J') && (b == b'I' || b == b'J') {
+                false
+            } else {
+                a < b
+            }
+        } else {
+            a < b
+        }
+    }
+
+    #[inline]
+    fn larger_than(a: u8, b: u8, i_and_l_equal: bool) -> bool {
+        if i_and_l_equal {
+            if (a == b'I' || a == b'J') && (b == b'I' || b == b'J') {
+                false
+            } else {
+                a > b
+            }
+        } else {
+            a > b
+        }
+    }
+
+
     // note: $ cannot be found since this is the first value in the array and the way the bounds are changed with center, index 0 is never checked
-    fn binary_search_min_match(&self, search_string: &[u8]) -> (bool, usize) {
+    fn binary_search_min_match(&self, search_string: &[u8], i_and_l_equal: bool) -> (bool, usize) {
         let mut left: usize = 0;
         let mut right: usize = self.sa.len();
         let mut lcp_left: usize = 0;
@@ -59,7 +89,8 @@ impl Searcher {
         while right - left > 1 {
             let center = (left + right) / 2;
             let skip = min(lcp_left, lcp_right);
-            let (retval, lcp_center) = self.compare(search_string, self.sa[center], skip, |a, b| a < b);
+
+            let (retval, lcp_center) = self.compare(search_string, self.sa[center], skip, |a, b, i_and_l_equal| Self::smaller_than(a, b, i_and_l_equal), i_and_l_equal);
             found |= lcp_center == search_string.len();
             if retval {
                 right = center;
@@ -72,7 +103,7 @@ impl Searcher {
 
         // handle edge case to search at index 0
         if right == 1 && left == 0 {
-            let (retval, lcp_center) = self.compare(search_string, self.sa[0], min(lcp_left, lcp_right), |a, b| a < b);
+            let (retval, lcp_center) = self.compare(search_string, self.sa[0], min(lcp_left, lcp_right), |a, b, i_and_l_equal| Self::smaller_than(a, b, i_and_l_equal), i_and_l_equal);
             found |= lcp_center == search_string.len();
             if retval {
                 right = 0;
@@ -81,7 +112,7 @@ impl Searcher {
         (found, right)
     }
 
-    fn binary_search_max_match(&self, search_string: &[u8]) -> (bool, usize) {
+    fn binary_search_max_match(&self, search_string: &[u8], i_and_l_equal: bool) -> (bool, usize) {
         let mut left: usize = 0;
         let mut right: usize = self.sa.len();
         let mut lcp_left: usize = 0;
@@ -92,7 +123,7 @@ impl Searcher {
         while right - left > 1 {
             let center = (left + right) / 2;
             let skip = min(lcp_left, lcp_right);
-            let (retval, lcp_center) = self.compare(search_string, self.sa[center], skip, |a, b| a > b);
+            let (retval, lcp_center) = self.compare(search_string, self.sa[center], skip, |a, b, i_and_l_equal| Self::larger_than(a, b, i_and_l_equal), i_and_l_equal);
             found |= lcp_center == search_string.len();
             if retval {
                 left = center;
@@ -105,7 +136,7 @@ impl Searcher {
         (found, left)
     }
 
-    fn binary_search_match(&self, search_string: &[u8]) -> bool {
+    fn binary_search_match(&self, search_string: &[u8], i_and_l_equal: bool) -> bool {
         let mut left: usize = 0;
         let mut right: usize = self.sa.len();
         let mut lcp_left: usize = 0;
@@ -116,7 +147,7 @@ impl Searcher {
         while !found && right - left > 1 {
             let center = (left + right) / 2;
             let skip = min(lcp_left, lcp_right);
-            let (retval, lcp_center) = self.compare(search_string, self.sa[center], skip, |a, b| a < b);
+            let (retval, lcp_center) = self.compare(search_string, self.sa[center], skip, |a, b, i_and_l_equal| Self::smaller_than(a, b, i_and_l_equal), i_and_l_equal);
             found = lcp_center == search_string.len();
             if retval {
                 right = center;
@@ -129,38 +160,38 @@ impl Searcher {
 
         // handle edge case to search at index 0
         if !found && right == 1 && left == 0 {
-            let (_, lcp_center) = self.compare(search_string, self.sa[0], min(lcp_left, lcp_right), |a, b| a < b);
+            let (_, lcp_center) = self.compare(search_string, self.sa[0], min(lcp_left, lcp_right), |a, b, i_and_l_equal| Self::smaller_than(a, b, i_and_l_equal), i_and_l_equal);
             found = lcp_center == search_string.len();
         }
 
         found
     }
 
-    pub fn search_bounds(&self, search_string: &[u8]) -> (bool, usize, usize) {
-        let (found, min_bound) = self.binary_search_min_match(search_string);
+    pub fn search_bounds(&self, search_string: &[u8], i_and_l_equal: bool) -> (bool, usize, usize) {
+        let (found, min_bound) = self.binary_search_min_match(search_string, i_and_l_equal);
         if !found {
             return (false, 0, self.sa.len());
         }
-        let (_, max_bound) = self.binary_search_max_match(search_string);
+        let (_, max_bound) = self.binary_search_max_match(search_string, i_and_l_equal);
 
         (true, min_bound, max_bound + 1) // add 1 to max bound to have exclusive end
     }
 
-    pub fn search_if_match(&self, search_string: &[u8]) -> bool {
+    pub fn search_if_match(&self, search_string: &[u8], i_and_l_equal: bool) -> bool {
         // case where SA is not sparse
         if self.sample_rate == 1 {
-            return self.binary_search_match(search_string)
+            return self.binary_search_match(search_string, i_and_l_equal)
         }
 
         for skip in 0..self.sample_rate as usize {
-            let (found, min_bound, max_bound) = self.search_bounds(&search_string[skip..]);
+            let (found, min_bound, max_bound) = self.search_bounds(&search_string[skip..], i_and_l_equal);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
             if found {
                 let unmatched_prefix = &search_string[..skip];
                 // try all the partially matched suffixes
                 for sa_index in min_bound..max_bound {
                     let suffix = self.sa[sa_index] as usize;
-                    if suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix] {
+                    if suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix] { // TODO: take into account possible I and L equality
                         return true;
                     }
                 }
@@ -172,11 +203,11 @@ impl Searcher {
     /// Search all the suffixes that search string matches with
     /// The first value is a boolean indicating if the cutoff is used, the second value returns the actual taxa
     #[inline]
-    pub fn search_matching_suffixes(&self, search_string: &[u8], max_matches: usize) -> (bool, Vec<i64>) {
+    pub fn search_matching_suffixes(&self, search_string: &[u8], max_matches: usize, i_and_l_equal: bool) -> (bool, Vec<i64>) {
         let mut matching_suffixes: Vec<i64> = vec![];
         let mut skip: usize = 0;
         while skip < self.sample_rate as usize {
-            let (found, min_bound, max_bound) = self.search_bounds(&search_string[skip..]);
+            let (found, min_bound, max_bound) = self.search_bounds(&search_string[skip..], i_and_l_equal);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
             if found {
                 let unmatched_prefix = &search_string[..skip];
@@ -185,7 +216,7 @@ impl Searcher {
                 while sa_index < max_bound {
                     let suffix = self.sa[sa_index] as usize;
                     // if skip is 0, then we already checked the complete match during bound search, otherwise check if the skipped part also matches
-                    if skip == 0 || (suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix]) {
+                    if skip == 0 || (suffix >= skip && unmatched_prefix == &self.proteins.input_string[suffix - skip..suffix]) { // TODO: take into account possible I and L equality
                         matching_suffixes.push((suffix - skip) as i64);
 
                         // return if max number of matches is reached
@@ -216,8 +247,8 @@ impl Searcher {
     }
 
     /// Search all the Proteins that a given search_string matches with
-    pub fn search_protein(&self, search_string: &[u8]) -> Vec<&Protein> {
-        let (_, matching_suffixes) = self.search_matching_suffixes(search_string, usize::MAX);
+    pub fn search_protein(&self, search_string: &[u8], i_and_l_equal: bool) -> Vec<&Protein> {
+        let (_, matching_suffixes) = self.search_matching_suffixes(search_string, usize::MAX, i_and_l_equal);
         self.retrieve_proteins(&matching_suffixes)
     }
 
@@ -243,8 +274,8 @@ impl Searcher {
         (uniprot_ids, taxa)
     }
 
-    pub fn search_lca(&self, search_string: &[u8]) -> Option<TaxonId> {
-        self.retrieve_lca(&self.search_protein(search_string))
+    pub fn search_lca(&self, search_string: &[u8], i_and_l_equal: bool) -> Option<TaxonId> {
+        self.retrieve_lca(&self.search_protein(search_string, i_and_l_equal))
     }
 
 }

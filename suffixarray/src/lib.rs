@@ -8,6 +8,7 @@ use suffixarray_builder::binary::{load_binary, write_binary};
 
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 use tsv_utils::{get_proteins_from_database_file, read_lines};
+use tsv_utils::il_equality::ILEquality;
 
 use crate::searcher::Searcher;
 use crate::suffix_to_protein_index::{
@@ -29,6 +30,7 @@ pub enum SearchMode {
 }
 
 #[derive(Parser, Debug)]
+#[allow(non_snake_case)]
 pub struct Arguments {
     /// File with the proteins used to build the suffix tree. All the proteins are expected to be concatenated using a `#`.
     #[arg(short, long)]
@@ -68,6 +70,8 @@ pub struct Arguments {
     cutoff: usize,
     #[arg(long)]
     threads: Option<NonZeroUsize>,
+    #[arg(long, default_value_t = false)]
+    equalize_I_and_L: bool
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -139,7 +143,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
 
 
 
-/// Perform the search as set with the commandline argumentsc
+/// Perform the search as set with the commandline arguments
 fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn Error>> {
     let mode = args.mode.as_ref().ok_or("No search mode provided")?;
     let cutoff = args.cutoff;
@@ -162,7 +166,7 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
     all_peptides
         .par_iter()
         // calculate the results
-        .map(|peptide| search_peptide(searcher, peptide, mode, cutoff))
+        .map(|peptide| search_peptide(searcher, peptide, mode, cutoff, args.equalize_I_and_L))
         // output the results, collect is needed to store order so the output is in the right sequential order
         .collect::<Vec<String>>()// TODO: this collect that makes the output again sequential is possibly unneeded since we also output the corresponding peptide (but make sure this still makes the right peptide;taxon-id mapping)
         .iter()
@@ -183,32 +187,33 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
 /// Executes the kind of search indicated by the commandline arguments
 pub fn search_peptide(
     searcher: &Searcher,
-    word: &str,
+    peptide: &str,
     search_mode: &SearchMode,
     cutoff: usize,
+    equalize_i_and_l: bool
 ) -> String {
-    let word = word.strip_suffix('\n').unwrap_or(word).to_uppercase();
-
     // words that are shorter than the sample rate are not searchable
-    if word.len() < searcher.sample_rate as usize {
+    if peptide.len() < searcher.sample_rate as usize {
         println!("/ (word too short short for SA sample size)");
         return String::new();
     }
-
+    
+    let word = peptide.strip_suffix('\n').unwrap_or(peptide).to_uppercase().switch_lj();
+    
     match *search_mode {
-        SearchMode::Match => format!("{}", searcher.search_if_match(word.as_bytes())),
+        SearchMode::Match => format!("{}", searcher.search_if_match(word.as_bytes(), equalize_i_and_l)),
         SearchMode::MinMaxBound => {
-            let (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes());
+            let (found, min_bound, max_bound) = searcher.search_bounds(word.as_bytes(), equalize_i_and_l);
             format!("{found};{min_bound};{max_bound};")
         }
         SearchMode::AllOccurrences => {
-            let results = searcher.search_protein(word.as_bytes());
+            let results = searcher.search_protein(word.as_bytes(), equalize_i_and_l);
             let number_of_proteins = results.len();
             let peptide_length = word.len();
             format!("{peptide_length};{number_of_proteins};") // TODO: return all the matching protein strings perhaps?
         }
         SearchMode::TaxonId => {
-            let (cutoff_used, suffixes) = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
+            let (cutoff_used, suffixes) = searcher.search_matching_suffixes(word.as_bytes(), cutoff, equalize_i_and_l);
             let result = if cutoff_used {
                 Some(1)
             } else {
@@ -223,7 +228,7 @@ pub fn search_peptide(
             }
         }
         SearchMode::Analyses => {
-            let (cutoff_used, suffixes) = searcher.search_matching_suffixes(word.as_bytes(), cutoff);
+            let (cutoff_used, suffixes) = searcher.search_matching_suffixes(word.as_bytes(), cutoff, equalize_i_and_l);
             let proteins = searcher.retrieve_proteins(&suffixes);
             let result = if cutoff_used {
                 Some(1)

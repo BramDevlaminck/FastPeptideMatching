@@ -113,21 +113,9 @@ impl Searcher {
             let (mut left, mut right, mut lcp_left, mut lcp_right, mut search_string) =
                 configurations_to_visit.pop_front().unwrap();
             let mut found = false;
-            // store copy from old value, needed for case where I and L are seen as equal and our search stops at I
-            let mut old_left = left;
-            let mut old_right = right;
-            let mut old_lcp_left = lcp_left;
-            let mut old_lcp_right = lcp_right;
-            let mut current_index_in_search_string = min(lcp_left, lcp_right); // TODO: is this right?
 
             // repeat until search window is minimum size OR we matched the whole search string last iteration
             while right - left > 1 {
-                // store copy from old value, needed for case where I and L are seen as equal and our search stops at I
-                old_left = left;
-                old_right = right;
-                old_lcp_left = lcp_left;
-                old_lcp_right = lcp_right;
-
                 let center = (left + right) / 2;
                 let skip = min(lcp_left, lcp_right);
                 let (retval, lcp_center, il_locations) = self.compare(
@@ -137,7 +125,6 @@ impl Searcher {
                     |a, b| a < b,
                     equalize_i_and_l,
                 );
-                current_index_in_search_string = lcp_center;
 
                 Self::handle_equal_i_and_l(
                     equalize_i_and_l,
@@ -170,7 +157,6 @@ impl Searcher {
                     |a, b| a < b,
                     equalize_i_and_l,
                 );
-                current_index_in_search_string = lcp_center;
 
                 // handle I's we passed while progressing
                 Self::handle_equal_i_and_l(
@@ -187,7 +173,6 @@ impl Searcher {
                 found |= lcp_center == search_string.len();
 
                 if retval {
-                    old_right = right;
                     right = 0;
                 }
             }
@@ -213,20 +198,9 @@ impl Searcher {
             let (mut left, mut right, mut lcp_left, mut lcp_right, mut search_string) =
                 configurations_to_visit.pop_front().unwrap();
             let mut found = false;
-            // store copy from old value, needed for case where I and L are seen as equal and our search stops at I
-            let mut old_left = left;
-            let mut old_right = right;
-            let mut old_lcp_left = lcp_left;
-            let mut old_lcp_right = lcp_right;
-            let mut current_index_in_search_string = min(lcp_left, lcp_right); // TODO: is this right?
 
             // repeat until search window is minimum size OR we matched the whole search string last iteration
             while right - left > 1 {
-                // store copy from old value, needed for case where I and L are seen as equal and our search stops at I
-                old_left = left;
-                old_right = right;
-                old_lcp_left = lcp_left;
-                old_lcp_right = lcp_right;
 
                 let center = (left + right) / 2;
                 let skip = min(lcp_left, lcp_right);
@@ -237,9 +211,7 @@ impl Searcher {
                     |a, b| a > b,
                     equalize_i_and_l,
                 );
-
-                current_index_in_search_string = lcp_center;
-
+                
                 Self::handle_equal_i_and_l(
                     equalize_i_and_l,
                     &mut configurations_to_visit,
@@ -261,6 +233,31 @@ impl Searcher {
                 }
             }
 
+            if right == 1 && left == 0 {
+                let (_, lcp_center, il_locations) = self.compare(
+                    &search_string,
+                    self.sa[0],
+                    min(lcp_left, lcp_right),
+                    |a, b| a < b,
+                    equalize_i_and_l,
+                );
+
+                // handle I's we passed while progressing
+                Self::handle_equal_i_and_l(
+                    equalize_i_and_l,
+                    &mut configurations_to_visit,
+                    &mut search_string,
+                    il_locations,
+                    left,
+                    right,
+                    lcp_left,
+                    lcp_right,
+                );
+
+                found |= lcp_center == search_string.len();
+            }
+            
+            
             results.push(left);
             found_array.push(found)
         }
@@ -490,7 +487,7 @@ mod tests {
     use tsv_utils::{Protein, Proteins};
 
     fn get_example_proteins() -> Proteins {
-        let text = "AC-BLACVAA-AC-ACRLZ$".to_string().into_bytes();
+        let text = "AI-BLACVAA-AC-KCRLZ$".to_string().into_bytes();
         Proteins {
             input_string: text,
             proteins: vec![
@@ -523,7 +520,7 @@ mod tests {
     fn test_search_simple() {
         let proteins = get_example_proteins();
         let sa = vec![
-            19, 10, 13, 2, 9, 8, 11, 0, 14, 5, 3, 12, 1, 15, 6, 4, 17, 16, 7, 18,
+            19, 10, 2, 13, 9, 8, 11, 5, 0, 3, 12, 15, 6, 1, 14, 4, 17, 16, 7, 18,
         ];
 
         let searcher = Searcher::new(
@@ -537,7 +534,7 @@ mod tests {
         // search bounds 'A'
         let (found, min_max_bounds) = searcher.search_bounds(&vec![b'A'], false);
         assert!(found);
-        assert_eq!(min_max_bounds, vec![(4, 10)]);
+        assert_eq!(min_max_bounds, vec![(4, 9)]);
 
         // search bounds '$'
         let (found, min_max_bounds) = searcher.search_bounds(&vec![b'$'], false);
@@ -547,14 +544,14 @@ mod tests {
         // search bounds 'AC'
         let (found, min_max_bounds) = searcher.search_bounds(&vec![b'A', b'C'], false);
         assert!(found);
-        assert_eq!(min_max_bounds, vec![(6, 10)]);
+        assert_eq!(min_max_bounds, vec![(6, 8)]);
     }
 
     #[test]
     fn test_search_sparse() {
         let proteins = get_example_proteins();
         let sa = vec![
-            9, 0, 3, 12, 15, 6, 18
+            9, 0, 3, 12, 15, 6, 18,
         ];
 
         let searcher = Searcher::new(
@@ -572,14 +569,14 @@ mod tests {
         // search suffix 'AC'
         let (_, mut matching_suffixes) = searcher.search_matching_suffixes(&vec![b'A', b'C'], usize::MAX, false);
         matching_suffixes.sort();
-        assert_eq!(matching_suffixes, vec![0, 5, 11, 14]);
+        assert_eq!(matching_suffixes, vec![5, 11]);
     }
 
     #[test]
     fn test_il_equality() {
         let proteins = get_example_proteins();
         let sa = vec![
-            19, 10, 13, 2, 9, 8, 11, 0, 14, 5, 3, 12, 1, 15, 6, 4, 17, 16, 7, 18,
+            19, 10, 2, 13, 9, 8, 11, 5, 0, 3, 12, 15, 6, 1, 14, 4, 17, 16, 7, 18,
         ];
 
         let searcher = Searcher::new(
@@ -593,7 +590,7 @@ mod tests {
         // search bounds 'I' with equal I and L
         let (found, min_max_bounds) = searcher.search_bounds(&vec![b'I'], true);
         assert!(found);
-        assert_eq!(min_max_bounds, vec![(15, 17)]);
+        assert_eq!(min_max_bounds, vec![(13, 14), (15, 17)]);
 
         // search bounds 'RIZ' with equal I and L
         let (found, min_max_bounds) = searcher.search_bounds(&vec![b'R', b'I', b'Z'], true);
@@ -605,7 +602,7 @@ mod tests {
     fn test_il_equality_sparse() {
         let proteins = get_example_proteins();
         let sa = vec![
-            9, 0, 3, 12, 15, 6, 18
+            9, 0, 3, 12, 15, 6, 18,
         ];
 
         let searcher = Searcher::new(
@@ -619,5 +616,36 @@ mod tests {
         // search bounds 'RIZ' with equal I and L
         let (_, matching_suffixes) = searcher.search_matching_suffixes(&vec![b'R', b'I', b'Z'], usize::MAX,true);
         assert_eq!(matching_suffixes, vec![16]);
+    }
+
+    // test edge case where an I or L is the first index in the sparse SA.
+    #[test]
+    fn test_l_first_index_in_sa() {
+        let text = "LMOXZ$".to_string().into_bytes();
+
+        let proteins = Proteins {
+            input_string: text,
+            proteins: vec![
+                Protein {
+                    uniprot_id: String::new(),
+                    sequence: (0, 6),
+                    id: 0,
+                },
+            ],
+        };
+
+        let sparse_sa = vec![0, 2, 4];
+        let searcher = Searcher::new(
+            sparse_sa,
+            2,
+            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+            proteins,
+            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
+        );
+
+        // search bounds 'IM' with equal I and L
+        let (_, matching_suffixes) = searcher.search_matching_suffixes(&vec![b'I', b'M'], usize::MAX,true);
+        assert_eq!(matching_suffixes, vec![0]);
+
     }
 }

@@ -67,7 +67,15 @@ pub fn search_peptide(
     cutoff: usize,
     equalize_i_and_l: bool
 ) -> Option<(usize, bool, Vec<String>, Vec<usize>)> {
-    let peptide = peptide.to_uppercase();
+    let mut peptide = peptide.to_uppercase();
+    if equalize_i_and_l { // translate L to an I if we equalize them
+        peptide = peptide.chars()
+            .map(|character| match character {
+                'L' => 'I',
+                _ => character,
+            })
+            .collect()
+    }
 
     // words that are shorter than the sample rate are not searchable
     if peptide.len() < searcher.sample_rate as usize {

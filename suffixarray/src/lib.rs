@@ -191,7 +191,7 @@ pub fn search_peptide(
     equalize_i_and_l: bool
 ) -> String {
     let mut peptide = word.strip_suffix('\n').unwrap_or(word).to_uppercase();
-    if equalize_i_and_l { // translate L to a I if we equalize them
+    if equalize_i_and_l { // translate L to an I if we equalize them
         peptide = peptide.chars()
             .map(|character| match character {
                 'L' => 'I',

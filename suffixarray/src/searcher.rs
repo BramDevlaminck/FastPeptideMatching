@@ -1,10 +1,13 @@
-use crate::suffix_to_protein_index::SuffixToProteinIndex;
-use crate::Nullable;
 use std::cmp::min;
 use std::collections::VecDeque;
-use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
-use tsv_utils::{Protein, Proteins};
+
 use umgap::taxon::TaxonId;
+
+use tsv_utils::{Protein, Proteins};
+use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
+
+use crate::Nullable;
+use crate::suffix_to_protein_index::SuffixToProteinIndex;
 
 pub struct Searcher {
     sa: Vec<i64>,
@@ -76,7 +79,7 @@ impl Searcher {
         (is_cond_or_equal, index_in_search_string, il_locations)
     }
 
-    fn handle_equal_i_and_l(
+    fn replace_i_with_l(
         equalize_i_and_l: bool,
         to_visit: &mut VecDeque<(usize, usize, usize, usize, Vec<u8>)>,
         current_search_string: &mut [u8],
@@ -126,7 +129,7 @@ impl Searcher {
                     equalize_i_and_l,
                 );
 
-                Self::handle_equal_i_and_l(
+                Self::replace_i_with_l(
                     equalize_i_and_l,
                     &mut configurations_to_visit,
                     &mut search_string,
@@ -159,7 +162,7 @@ impl Searcher {
                 );
 
                 // handle I's we passed while progressing
-                Self::handle_equal_i_and_l(
+                Self::replace_i_with_l(
                     equalize_i_and_l,
                     &mut configurations_to_visit,
                     &mut search_string,
@@ -201,7 +204,6 @@ impl Searcher {
 
             // repeat until search window is minimum size OR we matched the whole search string last iteration
             while right - left > 1 {
-
                 let center = (left + right) / 2;
                 let skip = min(lcp_left, lcp_right);
                 let (retval, lcp_center, il_locations) = self.compare(
@@ -212,7 +214,7 @@ impl Searcher {
                     equalize_i_and_l,
                 );
                 
-                Self::handle_equal_i_and_l(
+                Self::replace_i_with_l(
                     equalize_i_and_l,
                     &mut configurations_to_visit,
                     &mut search_string,
@@ -243,7 +245,7 @@ impl Searcher {
                 );
 
                 // handle I's we passed while progressing
-                Self::handle_equal_i_and_l(
+                Self::replace_i_with_l(
                     equalize_i_and_l,
                     &mut configurations_to_visit,
                     &mut search_string,
@@ -263,49 +265,6 @@ impl Searcher {
         }
 
         (found_array, results)
-    }
-
-    fn binary_search_match(&self, search_string: &[u8], equalize_i_and_l: bool) -> bool {
-        let mut left: usize = 0;
-        let mut right: usize = self.sa.len();
-        let mut lcp_left: usize = 0;
-        let mut lcp_right: usize = 0;
-        let mut found = false;
-
-        // repeat until search window is minimum size OR we matched the whole search string last iteration
-        while !found && right - left > 1 {
-            let center = (left + right) / 2;
-            let skip = min(lcp_left, lcp_right);
-            let (retval, lcp_center, il_locations) = self.compare(
-                search_string,
-                self.sa[center],
-                skip,
-                |a, b| a < b,
-                equalize_i_and_l,
-            ); // TODO: update for equal I and L
-            found = lcp_center == search_string.len();
-            if retval {
-                right = center;
-                lcp_right = lcp_center;
-            } else {
-                left = center;
-                lcp_left = lcp_center;
-            }
-        }
-
-        // handle edge case to search at index 0
-        if !found && right == 1 && left == 0 {
-            let (_, lcp_center, il_locations) = self.compare(
-                search_string,
-                self.sa[0],
-                min(lcp_left, lcp_right),
-                |a, b| a < b,
-                equalize_i_and_l,
-            ); // TODO: update for equal I and L
-            found = lcp_center == search_string.len();
-        }
-
-        found
     }
 
     pub fn search_bounds(
@@ -333,11 +292,6 @@ impl Searcher {
     }
 
     pub fn search_if_match(&self, search_string: &[u8], equalize_i_and_l: bool) -> bool {
-        // case where SA is not sparse
-        if self.sample_rate == 1 {
-            return self.binary_search_match(search_string, equalize_i_and_l);
-        }
-
         for skip in 0..self.sample_rate as usize {
             let (found, min_max_bounds) =
                 self.search_bounds(&search_string[skip..], equalize_i_and_l);
@@ -481,10 +435,11 @@ impl Searcher {
 
 #[cfg(test)]
 mod tests {
+    use tsv_utils::{Protein, Proteins};
+    use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
+
     use crate::searcher::Searcher;
     use crate::suffix_to_protein_index::SparseSuffixToProtein;
-    use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
-    use tsv_utils::{Protein, Proteins};
 
     fn get_example_proteins() -> Proteins {
         let text = "AI-BLACVAA-AC-KCRLZ$".to_string().into_bytes();

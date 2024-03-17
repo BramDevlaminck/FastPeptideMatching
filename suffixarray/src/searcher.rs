@@ -259,7 +259,6 @@ impl Searcher {
                 found |= lcp_center == search_string.len();
             }
             
-            
             results.push(left);
             found_array.push(found)
         }
@@ -602,5 +601,30 @@ mod tests {
         let (_, matching_suffixes) = searcher.search_matching_suffixes(&vec![b'I', b'M'], usize::MAX,true);
         assert_eq!(matching_suffixes, vec![0]);
 
+    }
+    
+    #[test]
+    fn test_matches() {
+        let proteins = get_example_proteins();
+        let sa = vec![
+            10, 2, 8, 0, 12, 6, 14, 4, 16, 18,
+        ];
+
+        let searcher = Searcher::new(
+            sa,
+            2,
+            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+            proteins,
+            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
+        );
+        
+        assert!(searcher.search_if_match(&vec![b'A', b'I'], false));
+        assert!(searcher.search_if_match(&vec![b'B', b'L'], false));
+        assert!(searcher.search_if_match(&vec![b'K', b'C', b'R'], false));
+        assert!(!searcher.search_if_match(&vec![b'A', b'L'], false));
+        assert!(!searcher.search_if_match(&vec![b'B', b'I'], false));
+        assert!(searcher.search_if_match(&vec![b'A', b'I'], true));
+        assert!(searcher.search_if_match(&vec![b'B', b'I'], true));
+        assert!(searcher.search_if_match(&vec![b'K', b'C', b'R', b'I'], true));
     }
 }

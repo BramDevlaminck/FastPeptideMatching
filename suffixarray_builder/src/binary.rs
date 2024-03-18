@@ -40,7 +40,7 @@ pub fn write_binary(sample_rate: u8, suffix_array: &[i64], name: &str) -> Result
         .create(true)
         .write(true)
         .truncate(true) // if the file already exists, empty the file
-        .open(name.to_owned() + "_sa.bin")?;
+        .open(name)?;
     f.write_all(&[sample_rate])?; // write the sample rate as the first byte
 
     // write 1 GiB at a time, to minimize extra used memory since we need to translate i64 to [u8; 8]

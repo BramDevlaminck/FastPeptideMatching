@@ -52,7 +52,7 @@ impl Searcher {
             && search_string[index_in_search_string] == self.proteins.input_string[index]
         {
             // if we want to set I and L equal, we need to know where to "split"
-            if equalize_i_and_l && search_string[index_in_search_string] == b'I' {
+            if equalize_i_and_l && search_string[index_in_search_string] == b'I' && (self.proteins.input_string[index] == b'J' || self.proteins.input_string[index] == b'K' || self.proteins.input_string[index] == b'L') {
                 il_locations.push(index_in_search_string);
             }
             index += 1;

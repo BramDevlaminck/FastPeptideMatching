@@ -72,7 +72,7 @@ impl Searcher {
 
         // TODO: vervang de "of V of K of L, door of V als we alle L'en voor V's zouden vervangen en omgekeerd in de originele tekst
         // Pattern of searching an 'L' is only different from searching a 'I' in 3 cases. This is when the character we compare it with is a 'J', 'K' or 'L'
-        if equalize_i_and_l && index_in_search_string < search_string.len() && search_string[index_in_search_string] == b'I' && (self.proteins.input_string[index] > b'I' && self.proteins.input_string[index] <= b'L') {
+        if equalize_i_and_l && index_in_search_string < search_string.len() && index < self.proteins.input_string.len() && search_string[index_in_search_string] == b'I' && (self.proteins.input_string[index] > b'I' && self.proteins.input_string[index] <= b'L') {
             il_locations.push(index_in_search_string);
         }
 

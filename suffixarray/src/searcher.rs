@@ -330,8 +330,8 @@ impl Searcher {
         let (found_max, max_bound) = self.binary_search_max_match(search_string, equalize_i_and_l);
         
         // Only get the values from the min and max bound search that actually had a match
-        let min_bounds: Vec<usize> = found_min.iter().zip(min_bound).into_iter().filter(|(&found, bound)| found).map(|(_, bound)| bound).collect();
-        let max_bounds: Vec<usize> = found_max.iter().zip(max_bound).into_iter().filter(|(&found, bound)| found).map(|(_, bound)| bound + 1).collect();
+        let min_bounds: Vec<usize> = found_min.iter().zip(min_bound).into_iter().filter(|(&found, _)| found).map(|(_, bound)| bound).collect();
+        let max_bounds: Vec<usize> = found_max.iter().zip(max_bound).into_iter().filter(|(&found, _)| found).map(|(_, bound)| bound + 1).collect();
 
         (true, min_bounds.into_iter().zip(max_bounds).collect())
     }

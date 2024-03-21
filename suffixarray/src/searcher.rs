@@ -6,12 +6,16 @@ use umgap::taxon::TaxonId;
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use tsv_utils::{Protein, Proteins};
 
+use crate::searcher::BoundSearch::{MAXIMUM, MINIMUM};
 use crate::suffix_to_protein_index::SuffixToProteinIndex;
 use crate::Nullable;
-use crate::searcher::BoundSearch::{MAXIMUM, MINIMUM};
 
 /// Enum indicating if we are searching for the minimum, or maximum bound in the suffix array
-enum BoundSearch{MINIMUM, MAXIMUM}
+#[derive(Clone, Copy, PartialEq)]
+enum BoundSearch {
+    MINIMUM,
+    MAXIMUM,
+}
 
 pub struct Searcher {
     sa: Vec<i64>,
@@ -44,25 +48,25 @@ impl Searcher {
         suffix: i64,
         skip: usize,
         equalize_i_and_l: bool,
-        bound: BoundSearch
+        bound: BoundSearch,
     ) -> (bool, usize, Vec<usize>) {
         let mut il_locations = vec![];
         let mut index = (suffix as usize) + skip;
         let mut index_in_search_string = skip;
         let mut is_cond_or_equal = false;
-        
+
         // compare input value to I. Depending on if we search for the min of max bound we need to also search further in the direction of I itself
-        let compare_to_i_search_l = match bound { 
+        let compare_to_i_search_l = match bound {
             MINIMUM => |val| val >= b'I',
             MAXIMUM => |val| val > b'I',
         };
-        
-        // Depending on if we are searching for the min of max bound our condition is different 
+
+        // Depending on if we are searching for the min of max bound our condition is different
         let condition_check = match bound {
             MINIMUM => |a: u8, b: u8| a < b,
-           MAXIMUM =>|a: u8, b: u8| a > b,
+            MAXIMUM => |a: u8, b: u8| a > b,
         };
-        
+
         // match as long as possible
         while index_in_search_string < search_string.len()
             && index < self.proteins.input_string.len()
@@ -115,18 +119,21 @@ impl Searcher {
         lcp_left: usize,
         lcp_right: usize,
         current_min_l_location: Option<usize>,
-        visited_strings: &mut HashSet<Vec<u8>>
+        visited_strings: &mut HashSet<Vec<u8>>,
     ) {
         if equalize_i_and_l {
             for switch_location in il_positions {
                 // TODO: current_min_l_location is possibly entirely unneeded since we also have the visited_strings hashset that tracks what is already visited
-                if current_min_l_location.is_none() || current_min_l_location.unwrap() < switch_location {
+                if current_min_l_location.is_none()
+                    || current_min_l_location.unwrap() < switch_location
+                {
                     let mut search_string_copy = current_search_string.to_owned();
-                    search_string_copy[switch_location] = match search_string_copy[switch_location] {
+                    search_string_copy[switch_location] = match search_string_copy[switch_location]
+                    {
                         b'I' => b'L',
                         _ => search_string_copy[switch_location],
                     };
-                    
+
                     // only add the IL variant of this string if it is not yet visited (or in the queue waiting to be visited)
                     // TODO: visited_strings could be changed to be using a bitvector indicating which I or L's are already visited
                     if !visited_strings.contains(&search_string_copy) {
@@ -136,7 +143,14 @@ impl Searcher {
                             current_min_l_location
                         };
 
-                        to_visit.push_back((left, right, lcp_left, lcp_right, search_string_copy.clone(), new_min_l_location));
+                        to_visit.push_back((
+                            left,
+                            right,
+                            lcp_left,
+                            lcp_right,
+                            search_string_copy.clone(),
+                            new_min_l_location,
+                        ));
                         visited_strings.insert(search_string_copy);
                     }
                 }
@@ -144,19 +158,34 @@ impl Searcher {
         }
     }
 
-    fn binary_search_min_match(
+    fn binary_search_bound(
         &self,
+        bound: BoundSearch,
         search_string: &[u8],
         equalize_i_and_l: bool,
     ) -> (Vec<bool>, Vec<usize>) {
         let mut results = vec![];
         let mut found_array = vec![];
-        let mut configurations_to_visit: VecDeque<(usize, usize, usize, usize, Vec<u8>, Option<usize>)> =
-            VecDeque::from([(0, self.sa.len(), 0, 0, search_string.to_owned(), None)]);
-        
+        let mut configurations_to_visit: VecDeque<(
+            usize,
+            usize,
+            usize,
+            usize,
+            Vec<u8>,
+            Option<usize>,
+        )> = VecDeque::from([(0, self.sa.len(), 0, 0, search_string.to_owned(), None)]);
+
         let mut visited_strings: HashSet<Vec<u8>> = HashSet::new();
-        
-        while let Some((mut left, mut right, mut lcp_left, mut lcp_right, mut search_string, min_L_location)) = configurations_to_visit.pop_front() {
+
+        while let Some((
+            mut left,
+            mut right,
+            mut lcp_left,
+            mut lcp_right,
+            mut search_string,
+            min_L_location,
+        )) = configurations_to_visit.pop_front()
+        {
             let mut found = false;
 
             // repeat until search window is minimum size OR we matched the whole search string last iteration
@@ -168,7 +197,7 @@ impl Searcher {
                     self.sa[center],
                     skip,
                     equalize_i_and_l,
-                    MINIMUM
+                    bound,
                 );
 
                 Self::replace_i_with_l(
@@ -181,12 +210,13 @@ impl Searcher {
                     lcp_left,
                     lcp_right,
                     min_L_location,
-                    &mut visited_strings
+                    &mut visited_strings,
                 );
 
                 found |= lcp_center == search_string.len();
-
-                if retval {
+                
+                // update the left and right bound, depending on if we are searching the min or max bound
+                if retval && bound == MINIMUM || !retval && bound == MAXIMUM {
                     right = center;
                     lcp_right = lcp_center;
                 } else {
@@ -202,7 +232,7 @@ impl Searcher {
                     self.sa[0],
                     min(lcp_left, lcp_right),
                     equalize_i_and_l,
-                    MINIMUM
+                    bound,
                 );
 
                 // handle I's we passed while progressing
@@ -216,102 +246,20 @@ impl Searcher {
                     lcp_left,
                     lcp_right,
                     min_L_location,
-                    &mut visited_strings
+                    &mut visited_strings,
                 );
 
                 found |= lcp_center == search_string.len();
 
-                if retval {
+                if bound == MINIMUM && retval {
                     right = 0;
                 }
             }
 
-            results.push(right);
-            found_array.push(found)
-        }
-
-        (found_array, results)
-    }
-
-    fn binary_search_max_match(
-        &self,
-        search_string: &[u8],
-        equalize_i_and_l: bool,
-    ) -> (Vec<bool>, Vec<usize>) {
-        let mut results = vec![];
-        let mut found_array = vec![];
-        let mut configurations_to_visit: VecDeque<(usize, usize, usize, usize, Vec<u8>, Option<usize>)> =
-            VecDeque::from([(0, self.sa.len(), 0, 0, search_string.to_owned(), None)]);
-
-        let mut visited_strings: HashSet<Vec<u8>> = HashSet::new();
-
-        while let Some((mut left, mut right, mut lcp_left, mut lcp_right, mut search_string, min_L_location)) = configurations_to_visit.pop_front() {
-            let mut found = false;
-
-            // repeat until search window is minimum size OR we matched the whole search string last iteration
-            while right - left > 1 {
-                let center = (left + right) / 2;
-                let skip = min(lcp_left, lcp_right);
-                let (retval, lcp_center, il_locations) = self.compare(
-                    &search_string,
-                    self.sa[center],
-                    skip,
-                    equalize_i_and_l,
-                    MAXIMUM
-                );
-
-                Self::replace_i_with_l(
-                    equalize_i_and_l,
-                    &mut configurations_to_visit,
-                    &mut search_string,
-                    il_locations,
-                    left,
-                    right,
-                    lcp_left,
-                    lcp_right,
-                    min_L_location,
-                    &mut visited_strings
-                );
-
-                found |= lcp_center == search_string.len();
-
-                if retval {
-                    left = center;
-                    lcp_left = lcp_center;
-                } else {
-                    right = center;
-                    lcp_right = lcp_center;
-                }
+            match bound {
+                MINIMUM => results.push(right),
+                MAXIMUM => results.push(left),
             }
-            
-            // handle edge case to find element at index 0
-            if right == 1 && left == 0 {
-                let (_, lcp_center, il_locations) = self.compare(
-                    &search_string,
-                    self.sa[0],
-                    min(lcp_left, lcp_right),
-                    equalize_i_and_l,
-                    MAXIMUM
-                );
-
-                // handle I's we passed while progressing
-                Self::replace_i_with_l(
-                    equalize_i_and_l,
-                    &mut configurations_to_visit,
-                    &mut search_string,
-                    il_locations,
-                    left,
-                    right,
-                    lcp_left,
-                    lcp_right,
-                    min_L_location,
-                    &mut visited_strings
-                );
-
-                found |= lcp_center == search_string.len();
-            }
-
-            results.push(left);
             found_array.push(found)
         }
 
@@ -323,15 +271,29 @@ impl Searcher {
         search_string: &[u8],
         equalize_i_and_l: bool,
     ) -> (bool, Vec<(usize, usize)>) {
-        let (found_min, min_bound) = self.binary_search_min_match(search_string, equalize_i_and_l);
+        let (found_min, min_bound) =
+            self.binary_search_bound(MINIMUM, search_string, equalize_i_and_l);
         if !found_min.iter().any(|&f| f) {
             return (false, vec![(0, self.sa.len())]);
         }
-        let (found_max, max_bound) = self.binary_search_max_match(search_string, equalize_i_and_l);
-        
+        let (found_max, max_bound) =
+            self.binary_search_bound(MAXIMUM, search_string, equalize_i_and_l);
+
         // Only get the values from the min and max bound search that actually had a match
-        let min_bounds: Vec<usize> = found_min.iter().zip(min_bound).into_iter().filter(|(&found, _)| found).map(|(_, bound)| bound).collect();
-        let max_bounds: Vec<usize> = found_max.iter().zip(max_bound).into_iter().filter(|(&found, _)| found).map(|(_, bound)| bound + 1).collect();
+        let min_bounds: Vec<usize> = found_min
+            .iter()
+            .zip(min_bound)
+            .into_iter()
+            .filter(|(&found, _)| found)
+            .map(|(_, bound)| bound)
+            .collect();
+        let max_bounds: Vec<usize> = found_max
+            .iter()
+            .zip(max_bound)
+            .into_iter()
+            .filter(|(&found, _)| found)
+            .map(|(_, bound)| bound + 1)
+            .collect();
 
         (true, min_bounds.into_iter().zip(max_bounds).collect())
     }
@@ -701,7 +663,6 @@ mod tests {
         assert_eq!(matching_suffixes, vec![2, 3, 4, 5]);
     }
 
-
     #[test]
     fn test_il_duplication() {
         let text = "IIIILL$".to_string().into_bytes();
@@ -728,7 +689,7 @@ mod tests {
         let (_, mut matching_suffixes) =
             searcher.search_matching_suffixes(&vec![b'I', b'I'], usize::MAX, true);
         matching_suffixes.sort();
-        assert_eq!(matching_suffixes, vec![0 ,1, 2, 3, 4]);
+        assert_eq!(matching_suffixes, vec![0, 1, 2, 3, 4]);
     }
 
     #[test]
@@ -757,6 +718,6 @@ mod tests {
         let (_, mut matching_suffixes) =
             searcher.search_matching_suffixes(&vec![b'I', b'I'], usize::MAX, true);
         matching_suffixes.sort();
-        assert_eq!(matching_suffixes, vec![0 ,1, 2, 3, 4]);
+        assert_eq!(matching_suffixes, vec![0, 1, 2, 3, 4]);
     }
 }

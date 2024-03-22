@@ -55,12 +55,6 @@ impl Searcher {
         let mut index_in_search_string = skip;
         let mut is_cond_or_equal = false;
 
-        // compare input value to I. Depending on if we search for the min of max bound we need to also search further in the direction of I itself
-        let compare_to_i_search_l = match bound {
-            MINIMUM => |val| val >= b'I',
-            MAXIMUM => |val| val > b'I',
-        };
-
         // Depending on if we are searching for the min of max bound our condition is different
         let condition_check = match bound {
             MINIMUM => |a: u8, b: u8| a < b,
@@ -75,7 +69,7 @@ impl Searcher {
             // if we want to set I and L equal, we need to know where to "split"
             if equalize_i_and_l
                 && search_string[index_in_search_string] == b'I'
-                && compare_to_i_search_l(self.proteins.input_string[index])
+                && self.proteins.input_string[index] >= b'I'
                 && self.proteins.input_string[index] <= b'L'
             {
                 il_locations.push(index_in_search_string);
@@ -214,7 +208,7 @@ impl Searcher {
                 );
 
                 found |= lcp_center == search_string.len();
-                
+
                 // update the left and right bound, depending on if we are searching the min or max bound
                 if retval && bound == MINIMUM || !retval && bound == MAXIMUM {
                     right = center;

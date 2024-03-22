@@ -18,6 +18,8 @@ use crate::util::get_time_ms;
 pub mod searcher;
 pub mod suffix_to_protein_index;
 pub mod util;
+mod sequence_bitpattern;
+
 /// Enum that represents the 5 kinds of search that we support
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum SearchMode {
@@ -73,24 +75,14 @@ pub struct Arguments {
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
-    let start_reading_proteins_ms = get_time_ms()?;
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy, AggregationMethod::LcaStar);
-    // println!("taxonomy calculator built");
-
     let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator)?;
-
-    // construct the sequence that will be used to build the tree
-    // println!("read all proteins");
-    let current = get_time_ms()?;
-    // println!("Time spent for reading: {}", current - start_reading_proteins_ms);
 
     let sa = match &args.load_index {
         // load SA from file
         Some(index_file_name) => {
-            let start_loading_ms = get_time_ms()?;
             let (sample_rate, sa) = load_binary(index_file_name)?;
             args.sample_rate = sample_rate;
-            let end_loading_ms = get_time_ms()?;
             // println!("Loading the SA took {} ms and loading the proteins + SA took {} ms", end_loading_ms - start_loading_ms, end_loading_ms - start_reading_proteins_ms);
             // TODO: some kind of security check that the loaded database file and SA match
             sa
@@ -102,9 +94,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     };
 
     if let Some(output) = &args.output {
-        // println!("storing index to file {}", output);
         write_binary(args.sample_rate, &sa, output)?;
-        // println!("Index written away");
     }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
@@ -125,7 +115,6 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
                 Box::new(SparseSuffixToProtein::new(&proteins.input_string))
             }
         };
-    // println!("mapping built");
 
     let searcher = Searcher::new(
         sa,

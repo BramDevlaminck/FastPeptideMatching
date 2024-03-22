@@ -1,5 +1,5 @@
 use std::cmp::min;
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
 use umgap::taxon::TaxonId;
 
@@ -7,6 +7,7 @@ use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use tsv_utils::{Protein, Proteins};
 
 use crate::searcher::BoundSearch::{MAXIMUM, MINIMUM};
+use crate::sequence_bitpattern::SequenceBitPattern;
 use crate::suffix_to_protein_index::SuffixToProteinIndex;
 use crate::Nullable;
 
@@ -50,7 +51,7 @@ impl Searcher {
         equalize_i_and_l: bool,
         bound: BoundSearch,
     ) -> (bool, usize, Vec<usize>) {
-        let mut il_locations = vec![];
+        let mut positions_to_switch_i_and_l = vec![];
         let mut index = (suffix as usize) + skip;
         let mut index_in_search_string = skip;
         let mut is_cond_or_equal = false;
@@ -72,7 +73,7 @@ impl Searcher {
                 && self.proteins.input_string[index] >= b'I'
                 && self.proteins.input_string[index] <= b'L'
             {
-                il_locations.push(index_in_search_string);
+                positions_to_switch_i_and_l.push(index_in_search_string);
             }
             index += 1;
             index_in_search_string += 1;
@@ -97,26 +98,31 @@ impl Searcher {
             && (self.proteins.input_string[index] > b'I'
                 && self.proteins.input_string[index] <= b'L')
         {
-            il_locations.push(index_in_search_string);
+            positions_to_switch_i_and_l.push(index_in_search_string);
         }
 
-        (is_cond_or_equal, index_in_search_string, il_locations)
+        (
+            is_cond_or_equal,
+            index_in_search_string,
+            positions_to_switch_i_and_l,
+        )
     }
 
     fn replace_i_with_l(
         equalize_i_and_l: bool,
         to_visit: &mut VecDeque<(usize, usize, usize, usize, Vec<u8>, Option<usize>)>,
         current_search_string: &mut [u8],
-        il_positions: Vec<usize>,
+        positions_to_switch_i_and_l: Vec<usize>,
         left: usize,
         right: usize,
         lcp_left: usize,
         lcp_right: usize,
         current_min_l_location: Option<usize>,
-        visited_strings: &mut HashSet<Vec<u8>>,
+        visited_strings: &mut SequenceBitPattern,
+        il_locations: &Vec<usize>,
     ) {
         if equalize_i_and_l {
-            for switch_location in il_positions {
+            for switch_location in positions_to_switch_i_and_l {
                 // TODO: current_min_l_location is possibly entirely unneeded since we also have the visited_strings hashset that tracks what is already visited
                 if current_min_l_location.is_none()
                     || current_min_l_location.unwrap() < switch_location
@@ -129,8 +135,8 @@ impl Searcher {
                     };
 
                     // only add the IL variant of this string if it is not yet visited (or in the queue waiting to be visited)
-                    // TODO: visited_strings could be changed to be using a bitvector indicating which I or L's are already visited
-                    if !visited_strings.contains(&search_string_copy) {
+                    if !visited_strings.check_if_contains_and_add(&search_string_copy, &il_locations)
+                    {
                         let new_min_l_location = if current_min_l_location.is_none() {
                             Some(switch_location)
                         } else {
@@ -145,7 +151,6 @@ impl Searcher {
                             search_string_copy.clone(),
                             new_min_l_location,
                         ));
-                        visited_strings.insert(search_string_copy);
                     }
                 }
             }
@@ -156,8 +161,10 @@ impl Searcher {
         &self,
         bound: BoundSearch,
         search_string: &[u8],
-        equalize_i_and_l: bool,
+        il_locations: &Vec<usize>,
     ) -> (Vec<bool>, Vec<usize>) {
+        let equalize_i_and_l = !il_locations.is_empty();
+        let mut visited_pattern = SequenceBitPattern::new(il_locations);
         let mut results = vec![];
         let mut found_array = vec![];
         let mut configurations_to_visit: VecDeque<(
@@ -169,7 +176,7 @@ impl Searcher {
             Option<usize>,
         )> = VecDeque::from([(0, self.sa.len(), 0, 0, search_string.to_owned(), None)]);
 
-        let mut visited_strings: HashSet<Vec<u8>> = HashSet::new();
+        // let mut visited_strings: HashSet<Vec<u8>> = HashSet::new();
 
         while let Some((
             mut left,
@@ -177,7 +184,7 @@ impl Searcher {
             mut lcp_left,
             mut lcp_right,
             mut search_string,
-            min_L_location,
+            min_l_location,
         )) = configurations_to_visit.pop_front()
         {
             let mut found = false;
@@ -186,7 +193,7 @@ impl Searcher {
             while right - left > 1 {
                 let center = (left + right) / 2;
                 let skip = min(lcp_left, lcp_right);
-                let (retval, lcp_center, il_locations) = self.compare(
+                let (retval, lcp_center, positions_to_switch_i_and_l) = self.compare(
                     &search_string,
                     self.sa[center],
                     skip,
@@ -198,13 +205,14 @@ impl Searcher {
                     equalize_i_and_l,
                     &mut configurations_to_visit,
                     &mut search_string,
-                    il_locations,
+                    positions_to_switch_i_and_l,
                     left,
                     right,
                     lcp_left,
                     lcp_right,
-                    min_L_location,
-                    &mut visited_strings,
+                    min_l_location,
+                    &mut visited_pattern,
+                    il_locations,
                 );
 
                 found |= lcp_center == search_string.len();
@@ -221,7 +229,7 @@ impl Searcher {
 
             // handle edge case to search at index 0
             if right == 1 && left == 0 {
-                let (retval, lcp_center, il_locations) = self.compare(
+                let (retval, lcp_center, positions_to_switch_i_and_l) = self.compare(
                     &search_string,
                     self.sa[0],
                     min(lcp_left, lcp_right),
@@ -234,13 +242,14 @@ impl Searcher {
                     equalize_i_and_l,
                     &mut configurations_to_visit,
                     &mut search_string,
-                    il_locations,
+                    positions_to_switch_i_and_l,
                     left,
                     right,
                     lcp_left,
                     lcp_right,
-                    min_L_location,
-                    &mut visited_strings,
+                    min_l_location,
+                    &mut visited_pattern,
+                    il_locations,
                 );
 
                 found |= lcp_center == search_string.len();
@@ -265,13 +274,26 @@ impl Searcher {
         search_string: &[u8],
         equalize_i_and_l: bool,
     ) -> (bool, Vec<(usize, usize)>) {
-        let (found_min, min_bound) =
-            self.binary_search_bound(MINIMUM, search_string, equalize_i_and_l);
+        // if we equalize I and L, calculate the locations of these letters, otherwise just use the empty vector, since it will be unused
+        // we will use the size as this vector to indicate if we should equalize I and L or not.
+        // it is possible that equalize_i_and_l was set to true, but no I or L is part of the string, in that case we will spare all the extra checks if were are at an I or L
+        let mut il_locations = vec![];
+        if equalize_i_and_l {
+            search_string
+                .iter()
+                .enumerate()
+                .for_each(|(index, &character)| {
+                    if character == b'I' || character == b'L' {
+                        il_locations.push(index)
+                    }
+                })
+        }
+
+        let (found_min, min_bound) = self.binary_search_bound(MINIMUM, search_string, &il_locations);
         if !found_min.iter().any(|&f| f) {
             return (false, vec![(0, self.sa.len())]);
         }
-        let (found_max, max_bound) =
-            self.binary_search_bound(MAXIMUM, search_string, equalize_i_and_l);
+        let (found_max, max_bound) = self.binary_search_bound(MAXIMUM, search_string, &il_locations);
 
         // Only get the values from the min and max bound search that actually had a match
         let min_bounds: Vec<usize> = found_min

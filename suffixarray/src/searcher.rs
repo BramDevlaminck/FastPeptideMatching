@@ -252,7 +252,7 @@ impl Searcher {
     /// Search the min and max bound of the `search_string` in the suffix array.
     /// If `equalize_i_and_l` is set to true we will also allow an L on every location an I is present.
     /// This means that we expect the `search_string` to be preprocessed when we want to equalize I and L.
-    /// Every L should already be replaced by a I in the `search_string`!
+    /// Every L should already be replaced by an I in the `search_string`!
     pub fn search_bounds(
         &self,
         search_string: &[u8],
@@ -298,10 +298,10 @@ impl Searcher {
         (true, min_bounds.into_iter().zip(max_bounds).collect())
     }
     
-    /// Search if there if a match for the `search_string` can be found somewhere in the suffix array.
+    /// Search if there is a match for the `search_string` can be found somewhere in the suffix array.
     /// If `equalize_i_and_l` is set to true we will also allow an L on every location an I is present.
     /// This means that we expect the `search_string` to be preprocessed when we want to equalize I and L.
-    /// Every L should already be replaced by a I in the `search_string`!
+    /// Every L should already be replaced by an I in the `search_string`!
     pub fn search_if_match(&self, search_string: &[u8], equalize_i_and_l: bool) -> bool {
         for skip in 0..self.sample_rate as usize {
             let (found, min_max_bounds) =
@@ -331,6 +331,10 @@ impl Searcher {
 
     /// Search all the suffixes that search string matches with
     /// The first value is a boolean indicating if the cutoff is used, the second value returns the actual taxa
+    ///
+    /// If `equalize_i_and_l` is set to true we will also allow an L on every location an I is present.
+    /// This means that we expect the `search_string` to be preprocessed when we want to equalize I and L.
+    /// Every L should already be replaced by an I in the `search_string`! 
     #[inline]
     pub fn search_matching_suffixes(
         &self,

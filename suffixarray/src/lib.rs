@@ -8,8 +8,9 @@ use suffixarray_builder::binary::{load_binary, write_binary};
 
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 use tsv_utils::{get_proteins_from_database_file, read_lines};
+use crate::searcher::MaxPeptideSearchTime::Default;
 
-use crate::searcher::Searcher;
+use crate::searcher::{SearchAllSuffixesResult, Searcher};
 use crate::suffix_to_protein_index::{
     DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
 };
@@ -194,45 +195,52 @@ pub fn search_peptide(
         println!("/ (word too short short for SA sample size)");
         return String::new();
     }
-
+    
     match *search_mode {
-        SearchMode::Match => format!("{}", searcher.search_if_match(peptide.as_bytes(), equalize_i_and_l)),
+        SearchMode::Match => format!("{}", searcher.search_if_match(peptide.as_bytes(), equalize_i_and_l, Default)),
         SearchMode::MinMaxBound => {
-            let (found, min_max_bounds) = searcher.search_bounds(peptide.as_bytes(), equalize_i_and_l);
-            format!("{found};{:?}", min_max_bounds)
+            let min_max_bounds = searcher.search_bounds(peptide.as_bytes(), equalize_i_and_l, Default.into());
+            format!("{:?}", min_max_bounds)
         }
         SearchMode::AllOccurrences => {
             let results = searcher.search_protein(peptide.as_bytes(), equalize_i_and_l);
             let number_of_proteins = results.len();
             let peptide_length = peptide.len();
-            println!("{:?}", results);
             format!("{peptide_length};{number_of_proteins};") // TODO: return all the matching protein strings perhaps?
         }
         SearchMode::TaxonId => {
-            let (cutoff_used, suffixes) = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
-            let result = if cutoff_used {
-                Some(1)
-            } else {
-                let proteins = searcher.retrieve_proteins(&suffixes);
-                searcher.retrieve_lca(&proteins)
+            let suffixes = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l, Default);
+            let id = match suffixes {
+                SearchAllSuffixesResult::MaxMatches(_) => Some(1),
+                SearchAllSuffixesResult::SearchResult(suffixes) => {
+                    let proteins = searcher.retrieve_proteins(&suffixes);
+                    searcher.retrieve_lca(&proteins)
+                }
+                _ => None
             };
-
-            if let Some(id) = result {
+    
+            if let Some(id) = id {
                 format!("{id}")
             } else {
                 "/".to_string()
             }
         }
         SearchMode::Analyses => {
-            let (cutoff_used, suffixes) = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
-            let proteins = searcher.retrieve_proteins(&suffixes);
-            let result = if cutoff_used {
-                Some(1)
-            } else {
-                searcher.retrieve_lca(&proteins)
+            let suffix_search_result = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l, Default);
+            let mut proteins = vec![];
+            let id = match suffix_search_result {
+                SearchAllSuffixesResult::MaxMatches(suffixes) => {
+                    proteins = searcher.retrieve_proteins(&suffixes);
+                    Some(1)
+                },
+                SearchAllSuffixesResult::SearchResult(suffixes) => {
+                    proteins = searcher.retrieve_proteins(&suffixes);
+                    searcher.retrieve_lca(&proteins)
+                }
+                _ => None
             };
-
-            if let Some(id) = result {
+    
+            if let Some(id) = id {
                 let annotations = Searcher::get_uniprot_and_taxa_ids(&proteins);
                 format!("{id};{:?}", annotations)
             } else {

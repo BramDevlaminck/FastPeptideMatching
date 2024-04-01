@@ -6,16 +6,16 @@ use umgap::taxon::TaxonId;
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use tsv_utils::{Protein, Proteins};
 
-use crate::searcher::BoundSearch::{MAXIMUM, MINIMUM};
 use crate::sequence_bitpattern::SequenceBitPattern;
 use crate::suffix_to_protein_index::SuffixToProteinIndex;
 use crate::Nullable;
+use crate::searcher::BoundSearch::{Maximum, Minimum};
 
 /// Enum indicating if we are searching for the minimum, or maximum bound in the suffix array
 #[derive(Clone, Copy, PartialEq)]
 enum BoundSearch {
-    MINIMUM,
-    MAXIMUM,
+    Minimum,
+    Maximum,
 }
 
 pub struct Searcher {
@@ -58,8 +58,8 @@ impl Searcher {
 
         // Depending on if we are searching for the min of max bound our condition is different
         let condition_check = match bound {
-            MINIMUM => |a: u8, b: u8| a < b,
-            MAXIMUM => |a: u8, b: u8| a > b,
+            Minimum => |a: u8, b: u8| a < b,
+            Maximum => |a: u8, b: u8| a > b,
         };
 
         // match as long as possible
@@ -129,7 +129,7 @@ impl Searcher {
                 };
 
                 // only add the IL variant of this string if it is not yet visited (or in the queue waiting to be visited)
-                if !visited_strings.check_if_contains_and_add(&search_string_copy, &il_locations) {
+                if !visited_strings.check_if_contains_and_add(&search_string_copy, il_locations) {
                     to_visit.push_back((
                         left,
                         right,
@@ -200,7 +200,7 @@ impl Searcher {
                 found |= lcp_center == search_string.len();
 
                 // update the left and right bound, depending on if we are searching the min or max bound
-                if retval && bound == MINIMUM || !retval && bound == MAXIMUM {
+                if retval && bound == Minimum || !retval && bound == Maximum {
                     right = center;
                     lcp_right = lcp_center;
                 } else {
@@ -235,14 +235,14 @@ impl Searcher {
 
                 found |= lcp_center == search_string.len();
 
-                if bound == MINIMUM && retval {
+                if bound == Minimum && retval {
                     right = 0;
                 }
             }
 
             match bound {
-                MINIMUM => results.push(right),
-                MAXIMUM => results.push(left),
+                Minimum => results.push(right),
+                Maximum => results.push(left),
             }
             found_array.push(found)
         }
@@ -271,25 +271,23 @@ impl Searcher {
         }
 
         let (found_min, min_bound) =
-            self.binary_search_bound(MINIMUM, search_string, &il_locations);
+            self.binary_search_bound(Minimum, search_string, &il_locations);
         if !found_min.iter().any(|&f| f) {
             return (false, vec![(0, self.sa.len())]);
         }
         let (found_max, max_bound) =
-            self.binary_search_bound(MAXIMUM, search_string, &il_locations);
+            self.binary_search_bound(Maximum, search_string, &il_locations);
 
         // Only get the values from the min and max bound search that actually had a match
         let min_bounds: Vec<usize> = found_min
             .iter()
             .zip(min_bound)
-            .into_iter()
             .filter(|(&found, _)| found)
             .map(|(_, bound)| bound)
             .collect();
         let max_bounds: Vec<usize> = found_max
             .iter()
             .zip(max_bound)
-            .into_iter()
             .filter(|(&found, _)| found)
             .map(|(_, bound)| bound + 1)
             .collect();
@@ -382,7 +380,7 @@ impl Searcher {
         equalize_i_and_l: bool,
     ) -> bool {
         if equalize_i_and_l {
-            search_string_prefix.into_iter().zip(index_prefix).all(
+            search_string_prefix.iter().zip(index_prefix).all(
                 |(&search_character, &index_character)| {
                     search_character == index_character
                         || (search_character == b'I' && index_character == b'L')
@@ -496,17 +494,17 @@ mod tests {
         );
 
         // search bounds 'A'
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'A'], false);
+        let (found, min_max_bounds) = searcher.search_bounds(&[b'A'], false);
         assert!(found);
         assert_eq!(min_max_bounds, vec![(4, 9)]);
 
         // search bounds '$'
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'$'], false);
+        let (found, min_max_bounds) = searcher.search_bounds(&[b'$'], false);
         assert!(found);
         assert_eq!(min_max_bounds, vec![(0, 1)]);
 
         // search bounds 'AC'
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'A', b'C'], false);
+        let (found, min_max_bounds) = searcher.search_bounds(&[b'A', b'C'], false);
         assert!(found);
         assert_eq!(min_max_bounds, vec![(6, 8)]);
     }
@@ -526,12 +524,12 @@ mod tests {
 
         // search suffix 'VAA'
         let (_, matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'V', b'A', b'A'], usize::MAX, false);
+            searcher.search_matching_suffixes(&[b'V', b'A', b'A'], usize::MAX, false);
         assert_eq!(matching_suffixes, vec![7]);
 
         // search suffix 'AC'
         let (_, mut matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'A', b'C'], usize::MAX, false);
+            searcher.search_matching_suffixes(&[b'A', b'C'], usize::MAX, false);
         matching_suffixes.sort();
         assert_eq!(matching_suffixes, vec![5, 11]);
     }
@@ -552,12 +550,12 @@ mod tests {
         );
 
         // search bounds 'I' with equal I and L
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'I'], true);
+        let (found, min_max_bounds) = searcher.search_bounds(&[b'I'], true);
         assert!(found);
         assert_eq!(min_max_bounds, vec![(13, 14), (15, 17)]);
 
         // search bounds 'RIZ' with equal I and L
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'R', b'I', b'Z'], true);
+        let (found, min_max_bounds) = searcher.search_bounds(&[b'R', b'I', b'Z'], true);
         assert!(found);
         assert_eq!(min_max_bounds, vec![(17, 18)]);
     }
@@ -577,7 +575,7 @@ mod tests {
 
         // search bounds 'RIZ' with equal I and L
         let (_, matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'R', b'I', b'Z'], usize::MAX, true);
+            searcher.search_matching_suffixes(&[b'R', b'I', b'Z'], usize::MAX, true);
         assert_eq!(matching_suffixes, vec![16]);
     }
 
@@ -606,7 +604,7 @@ mod tests {
 
         // search bounds 'IM' with equal I and L
         let (_, matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'I', b'M'], usize::MAX, true);
+            searcher.search_matching_suffixes(&[b'I', b'M'], usize::MAX, true);
         assert_eq!(matching_suffixes, vec![0]);
     }
 
@@ -623,14 +621,14 @@ mod tests {
             *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
         );
 
-        assert!(searcher.search_if_match(&vec![b'A', b'I'], false));
-        assert!(searcher.search_if_match(&vec![b'B', b'L'], false));
-        assert!(searcher.search_if_match(&vec![b'K', b'C', b'R'], false));
-        assert!(!searcher.search_if_match(&vec![b'A', b'L'], false));
-        assert!(!searcher.search_if_match(&vec![b'B', b'I'], false));
-        assert!(searcher.search_if_match(&vec![b'A', b'I'], true));
-        assert!(searcher.search_if_match(&vec![b'B', b'I'], true));
-        assert!(searcher.search_if_match(&vec![b'K', b'C', b'R', b'I'], true));
+        assert!(searcher.search_if_match(&[b'A', b'I'], false));
+        assert!(searcher.search_if_match(&[b'B', b'L'], false));
+        assert!(searcher.search_if_match(&[b'K', b'C', b'R'], false));
+        assert!(!searcher.search_if_match(&[b'A', b'L'], false));
+        assert!(!searcher.search_if_match(&[b'B', b'I'], false));
+        assert!(searcher.search_if_match(&[b'A', b'I'], true));
+        assert!(searcher.search_if_match(&[b'B', b'I'], true));
+        assert!(searcher.search_if_match(&[b'K', b'C', b'R', b'I'], true));
     }
 
     #[test]
@@ -657,7 +655,7 @@ mod tests {
 
         // search bounds 'IM' with equal I and L
         let (_, mut matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'I'], usize::MAX, true);
+            searcher.search_matching_suffixes(&[b'I'], usize::MAX, true);
         matching_suffixes.sort();
         assert_eq!(matching_suffixes, vec![2, 3, 4, 5]);
     }
@@ -686,7 +684,7 @@ mod tests {
 
         // search bounds 'IM' with equal I and L
         let (_, mut matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'I', b'I'], usize::MAX, true);
+            searcher.search_matching_suffixes(&[b'I', b'I'], usize::MAX, true);
         matching_suffixes.sort();
         assert_eq!(matching_suffixes, vec![0, 1, 2, 3, 4]);
     }
@@ -715,7 +713,7 @@ mod tests {
 
         // search bounds 'IM' with equal I and L
         let (_, mut matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'I', b'I'], usize::MAX, true);
+            searcher.search_matching_suffixes(&[b'I', b'I'], usize::MAX, true);
         matching_suffixes.sort();
         assert_eq!(matching_suffixes, vec![0, 1, 2, 3, 4]);
     }

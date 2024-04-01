@@ -46,7 +46,7 @@ impl SuffixToProteinIndex for SparseSuffixToProtein {
 }
 
 impl DenseSuffixToProtein {
-    pub fn new(text: &Vec<u8>) -> Self {
+    pub fn new(text: &[u8]) -> Self {
         let mut current_protein_index: u32 = 0;
         let mut suffix_index_to_protein: Vec<u32> = vec![];
         for &char in text.iter() {
@@ -64,7 +64,7 @@ impl DenseSuffixToProtein {
 
 impl SparseSuffixToProtein {
 
-    pub fn new(text: &Vec<u8>) -> Self {
+    pub fn new(text: &[u8]) -> Self {
         let mut suffix_index_to_protein: Vec<i64> = vec![0];
         for (index, &char) in text.iter().enumerate() {
             if char == SEPARATION_CHARACTER || char == END_CHARACTER {

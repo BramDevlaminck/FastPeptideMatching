@@ -159,10 +159,7 @@ impl Searcher {
             && search_string[index_in_search_string] == self.proteins.input_string[index_in_suffix]
         {
             // if we want to set I and L equal, we need to know where to "split"
-            if equalize_i_and_l
-                && search_string[index_in_search_string] == b'I'
-                && self.proteins.input_string[index_in_suffix] >= b'I'
-                && self.proteins.input_string[index_in_suffix] <= b'L'
+            if equalize_i_and_l && search_string[index_in_search_string] == b'I'
             {
                 positions_to_switch_i_and_l.push(index_in_search_string);
             }
@@ -257,7 +254,7 @@ impl Searcher {
             if get_time_ms().unwrap() > end_search_time {
                 return BinarySearchBoundResult::OutOfTime
             }
-            
+
             let mut found = false;
 
             // repeat until search window is minimum size OR we matched the whole search string last iteration

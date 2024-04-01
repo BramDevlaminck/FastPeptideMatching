@@ -6,10 +6,10 @@ use umgap::taxon::TaxonId;
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use tsv_utils::{Protein, Proteins};
 
+use crate::searcher::BoundSearch::{Maximum, Minimum};
 use crate::sequence_bitpattern::SequenceBitPattern;
 use crate::suffix_to_protein_index::SuffixToProteinIndex;
 use crate::Nullable;
-use crate::searcher::BoundSearch::{Maximum, Minimum};
 
 /// Enum indicating if we are searching for the minimum, or maximum bound in the suffix array
 #[derive(Clone, Copy, PartialEq)]
@@ -43,6 +43,11 @@ impl Searcher {
         }
     }
 
+    /// Compare function to perform the binary search
+    /// This function forwards progresses the search of the `search_string` as much as possible on the current `suffix`.
+    /// This search is a bit different depending on the current bound (searching for the min or max)
+    ///
+    /// When `equalize_i_and_l` is set to true this function also keeps track of which I's and L's we have progressed through and if we should start a new branch in the search tree
     fn compare(
         &self,
         search_string: &[u8],
@@ -52,7 +57,7 @@ impl Searcher {
         bound: BoundSearch,
     ) -> (bool, usize, Vec<usize>) {
         let mut positions_to_switch_i_and_l = vec![];
-        let mut index = (suffix as usize) + skip;
+        let mut index_in_suffix = (suffix as usize) + skip;
         let mut index_in_search_string = skip;
         let mut is_cond_or_equal = false;
 
@@ -64,27 +69,27 @@ impl Searcher {
 
         // match as long as possible
         while index_in_search_string < search_string.len()
-            && index < self.proteins.input_string.len()
-            && search_string[index_in_search_string] == self.proteins.input_string[index]
+            && index_in_suffix < self.proteins.input_string.len()
+            && search_string[index_in_search_string] == self.proteins.input_string[index_in_suffix]
         {
             // if we want to set I and L equal, we need to know where to "split"
             if equalize_i_and_l
                 && search_string[index_in_search_string] == b'I'
-                && self.proteins.input_string[index] >= b'I'
-                && self.proteins.input_string[index] <= b'L'
+                && self.proteins.input_string[index_in_suffix] >= b'I'
+                && self.proteins.input_string[index_in_suffix] <= b'L'
             {
                 positions_to_switch_i_and_l.push(index_in_search_string);
             }
-            index += 1;
+            index_in_suffix += 1;
             index_in_search_string += 1;
         }
         // check if match found OR current search string is smaller lexicographically (and the empty search string should not be found)
         if !search_string.is_empty()
             && (index_in_search_string == search_string.len()
-                || (index < self.proteins.input_string.len()
+                || (index_in_suffix < self.proteins.input_string.len()
                     && condition_check(
                         search_string[index_in_search_string],
-                        self.proteins.input_string[index],
+                        self.proteins.input_string[index_in_suffix],
                     )))
         {
             is_cond_or_equal = true;
@@ -93,10 +98,10 @@ impl Searcher {
         // Pattern of searching an 'L' is only different from searching a 'I' in 3 cases. This is when the character we compare it with is a 'J', 'K' or 'L'
         if equalize_i_and_l
             && index_in_search_string < search_string.len()
-            && index < self.proteins.input_string.len()
+            && index_in_suffix < self.proteins.input_string.len()
             && search_string[index_in_search_string] == b'I'
-            && (self.proteins.input_string[index] > b'I'
-                && self.proteins.input_string[index] <= b'L')
+            && (self.proteins.input_string[index_in_suffix] > b'I'
+                && self.proteins.input_string[index_in_suffix] <= b'L')
         {
             positions_to_switch_i_and_l.push(index_in_search_string);
         }
@@ -108,6 +113,10 @@ impl Searcher {
         )
     }
 
+    /// When `equalize_i_and_l` is set, this function adds the needed variants to the `to_visit` deque.
+    /// This is done using the correct bounds (`left`, `right`, `lcp_left` and `lcp_right`).
+    /// To prevent searching the same string multiple times we use a kind of bitvector (the `visited_strings` variable to keep track of which variants of the input sequence are already in the queue to be searched)
+    /// The `il_locations` vector contains all indices where there is an I or L in the `current_search_string`
     fn replace_i_with_l(
         equalize_i_and_l: bool,
         to_visit: &mut VecDeque<(usize, usize, usize, usize, Vec<u8>)>,
@@ -152,23 +161,13 @@ impl Searcher {
         let mut visited_pattern = SequenceBitPattern::new(il_locations);
         let mut results = vec![];
         let mut found_array = vec![];
-        let mut configurations_to_visit: VecDeque<(
-            usize,
-            usize,
-            usize,
-            usize,
-            Vec<u8>,
-        )> = VecDeque::from([(0, self.sa.len(), 0, 0, search_string.to_owned())]);
+        let mut configurations_to_visit: VecDeque<(usize, usize, usize, usize, Vec<u8>)> =
+            VecDeque::from([(0, self.sa.len(), 0, 0, search_string.to_owned())]);
 
         // let mut visited_strings: HashSet<Vec<u8>> = HashSet::new();
 
-        while let Some((
-            mut left,
-            mut right,
-            mut lcp_left,
-            mut lcp_right,
-            mut search_string,
-        )) = configurations_to_visit.pop_front()
+        while let Some((mut left, mut right, mut lcp_left, mut lcp_right, mut search_string)) =
+            configurations_to_visit.pop_front()
         {
             let mut found = false;
 
@@ -249,7 +248,11 @@ impl Searcher {
 
         (found_array, results)
     }
-
+    
+    /// Search the min and max bound of the `search_string` in the suffix array.
+    /// If `equalize_i_and_l` is set to true we will also allow an L on every location an I is present.
+    /// This means that we expect the `search_string` to be preprocessed when we want to equalize I and L.
+    /// Every L should already be replaced by a I in the `search_string`!
     pub fn search_bounds(
         &self,
         search_string: &[u8],
@@ -294,7 +297,11 @@ impl Searcher {
 
         (true, min_bounds.into_iter().zip(max_bounds).collect())
     }
-
+    
+    /// Search if there if a match for the `search_string` can be found somewhere in the suffix array.
+    /// If `equalize_i_and_l` is set to true we will also allow an L on every location an I is present.
+    /// This means that we expect the `search_string` to be preprocessed when we want to equalize I and L.
+    /// Every L should already be replaced by a I in the `search_string`!
     pub fn search_if_match(&self, search_string: &[u8], equalize_i_and_l: bool) -> bool {
         for skip in 0..self.sample_rate as usize {
             let (found, min_max_bounds) =

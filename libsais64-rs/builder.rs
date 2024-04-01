@@ -37,6 +37,12 @@ fn exit_status_to_result(name: &str, exit_status: ExitStatus) -> Result<(), Comp
 fn main() -> Result<(), Box<dyn Error>> {
     // compile the c library
     exit_status_to_result(
+        "remove cmake cache",
+        Command::new("rm")
+            .args(["libsais/CMakeCache.txt"])
+            .status()?,
+    )?;
+    exit_status_to_result(
         "cmake",
         Command::new("cmake")
             .args(["-DCMAKE_BUILD_TYPE=\"Release\"", "libsais", "-Blibsais"])

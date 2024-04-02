@@ -357,8 +357,14 @@ impl Searcher {
                     if character == b'I' || character == b'L' {
                         il_locations.push(index)
                     }
-                })
+                });
+            // 2^34 options in a bitvector is around 2 GB. Going allowing even more I's and L's will allocate a huge amount of memory
+            if il_locations.len() > 34 {
+                return BoundSearchResult::OutOfTime;
+            }
         }
+        
+
 
         let (found_min, min_bound) = match self.binary_search_bound(
             Minimum,

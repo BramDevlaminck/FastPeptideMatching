@@ -358,7 +358,8 @@ impl Searcher {
                         il_locations.push(index)
                     }
                 });
-            // 2^34 options in a bitvector is around 2 GB. Going allowing even more I's and L's will allocate a huge amount of memory
+            // 2^34 options in a bitvector is around 2 GB.
+            // If we allow more I's and L's, the program would ask for more memory than the server has and the program will crash
             if il_locations.len() > 34 {
                 return BoundSearchResult::OutOfTime;
             }

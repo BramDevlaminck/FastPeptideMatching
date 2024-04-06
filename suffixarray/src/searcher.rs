@@ -349,7 +349,7 @@ impl Searcher {
         // we will use the size as this vector to indicate if we should equalize I and L or not.
         // it is possible that equalize_i_and_l was set to true, but no I or L is part of the string, in that case we will spare all the extra checks if were are at an I or L
         let mut il_locations = vec![];
-        if equalize_i_and_l {
+        if equalize_i_and_l {   
             search_string
                 .iter()
                 .enumerate()

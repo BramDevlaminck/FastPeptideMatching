@@ -93,12 +93,14 @@ pub fn search_peptide(
         return None;
     }
 
-    let suffix_search = searcher.search_matching_suffixes(
-        peptide.as_bytes(),
-        cutoff,
-        equalize_i_and_l,
-        MaxPeptideSearchTime::Value(5000.0),
-    );
+    let max_time = if equalize_i_and_l {
+        MaxPeptideSearchTime::Value(5000.0)
+    } else {
+        MaxPeptideSearchTime::Unlimited
+    };
+
+    let suffix_search =
+        searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l, max_time);
     let time_limit_used = suffix_search == SearchAllSuffixesResult::OutOfTime;
     let mut suffixes = vec![];
     let mut cutoff_used = false;
@@ -146,8 +148,13 @@ async fn search(
         .filter(|(_, search_result)| search_result.is_some())
         // transform search results into output
         .map(|(index, search_results)| {
-            let PeptideSearchResult { lca, cutoff_used, time_limit_used, uniprot_accession_numbers, taxa} =
-                search_results.unwrap();
+            let PeptideSearchResult {
+                lca,
+                cutoff_used,
+                time_limit_used,
+                uniprot_accession_numbers,
+                taxa,
+            } = search_results.unwrap();
             SearchResult {
                 sequence: data.peptides[index].clone(),
                 lca,

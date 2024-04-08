@@ -10,7 +10,7 @@ pub struct SequenceBitPattern {
 
 impl SequenceBitPattern {
     
-    pub fn new(il_locations: &Vec<usize>) -> Self {
+    pub fn new(il_locations: &[usize]) -> Self {
         Self {
             pattern: vec![0; (2_usize.pow(il_locations.len() as u32) / 64) + 1]
         }
@@ -18,7 +18,7 @@ impl SequenceBitPattern {
     
     /// Translates a sequence (containing I's and L's) to a bit pattern, with the limit that there are not allowed to be more than 64 il_locations
     /// (this will already explode too much and make the pattern unusable)
-    fn il_sequence_to_bit_number(sequence: &Vec<u8>, il_locations: &Vec<usize>) -> u64 {
+    fn il_sequence_to_bit_number(sequence: &[u8], il_locations: &[usize]) -> u64 {
         let mut pattern: u64 = 0;
 
         for (index, &location) in il_locations.iter().enumerate() {
@@ -30,7 +30,7 @@ impl SequenceBitPattern {
         pattern
     }
     
-    pub fn check_if_contains_and_add(&mut self, sequence: &Vec<u8>, il_locations: &Vec<usize>) -> bool {
+    pub fn check_if_contains_and_add(&mut self, sequence: &[u8], il_locations: &[usize]) -> bool {
         let bit_nr = Self::il_sequence_to_bit_number(sequence, il_locations);
         
         let array_index = (bit_nr / 64) as usize;
@@ -59,12 +59,12 @@ mod tests {
     
     #[test]
     fn check_if_contains_and_add_test() {
-        let mut pattern = SequenceBitPattern::new(&vec![1, 3, 5, 6]);
+        let mut pattern = SequenceBitPattern::new(&[1, 3, 5, 6]);
         let sequence = "IILAJCL".to_string().into_bytes();
         let il_locations = &vec![0, 1, 2, 6];
-        assert_eq!(pattern.check_if_contains_and_add(&sequence, &il_locations), false);
+        assert!(!pattern.check_if_contains_and_add(&sequence, il_locations));
         // second time we add should return that the pattern already exists
-        assert_eq!(pattern.check_if_contains_and_add(&sequence, &il_locations), true);
+        assert!(pattern.check_if_contains_and_add(&sequence, il_locations));
         // check internal state
         assert_eq!(pattern.pattern.len(), 1);
         assert_eq!(pattern.pattern[0], 4096)

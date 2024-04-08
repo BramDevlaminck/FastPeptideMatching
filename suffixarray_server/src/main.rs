@@ -1,14 +1,14 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use axum::{http::StatusCode, Json, Router};
 use axum::extract::{DefaultBodyLimit, State};
 use axum::routing::{get, post};
+use axum::{http::StatusCode, Json, Router};
 use clap::Parser;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use suffixarray::searcher::Searcher;
+use suffixarray::searcher::{MaxPeptideSearchTime, SearchAllSuffixesResult, Searcher};
 use suffixarray::suffix_to_protein_index::SparseSuffixToProtein;
 use suffixarray_builder::binary::load_binary;
 use tsv_utils::get_proteins_from_database_file;
@@ -49,10 +49,11 @@ struct OutputData {
 #[derive(Debug, Serialize)]
 struct SearchResult {
     sequence: String,
-    lca: usize,
+    lca: Option<usize>,
     taxa: Vec<usize>,
     uniprot_accessions: Vec<String>,
-    cutoff_used: bool
+    cutoff_used: bool,
+    time_limit_used: bool,
 }
 
 // basic handler that responds with a static string
@@ -60,16 +61,26 @@ async fn root() -> &'static str {
     "Server is online"
 }
 
+pub struct PeptideSearchResult {
+    lca: Option<usize>,
+    cutoff_used: bool,
+    time_limit_used: bool,
+    uniprot_accession_numbers: Vec<String>,
+    taxa: Vec<usize>,
+}
+
 /// Executes the search of 1 peptide
 pub fn search_peptide(
     searcher: &Searcher,
     peptide: &str,
     cutoff: usize,
-    equalize_i_and_l: bool
-) -> Option<(usize, bool, Vec<String>, Vec<usize>)> {
+    equalize_i_and_l: bool,
+) -> Option<PeptideSearchResult> {
     let mut peptide = peptide.to_uppercase();
-    if equalize_i_and_l { // translate L to an I if we equalize them
-        peptide = peptide.chars()
+    if equalize_i_and_l {
+        // translate L to an I if we equalize them
+        peptide = peptide
+            .chars()
             .map(|character| match character {
                 'L' => 'I',
                 _ => character,
@@ -82,15 +93,44 @@ pub fn search_peptide(
         return None;
     }
 
-    let (cutoff_used, suffixes) = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
-    let proteins = searcher.retrieve_proteins(&suffixes);
-    let (uniprot_acc, taxa) = Searcher::get_uniprot_and_taxa_ids(&proteins);
-    if cutoff_used {
-        Some((1, cutoff_used, uniprot_acc, taxa))
+    let max_time = if equalize_i_and_l {
+        MaxPeptideSearchTime::Value(5000.0)
     } else {
-        let id = searcher.retrieve_lca(&proteins);
-        id.map(|id_unwrapped| (id_unwrapped, cutoff_used, uniprot_acc, taxa))
+        MaxPeptideSearchTime::Unlimited
+    };
+
+    let suffix_search =
+        searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l, max_time);
+    let time_limit_used = suffix_search == SearchAllSuffixesResult::OutOfTime;
+    let mut suffixes = vec![];
+    let mut cutoff_used = false;
+    match suffix_search {
+        SearchAllSuffixesResult::MaxMatches(matched_suffixes) => {
+            suffixes = matched_suffixes;
+            cutoff_used = true;
+        }
+        SearchAllSuffixesResult::SearchResult(matched_suffixes) => {
+            suffixes = matched_suffixes;
+        }
+        _ => {}
     }
+
+    let proteins = searcher.retrieve_proteins(&suffixes);
+    let (uniprot_accession_numbers, taxa) = Searcher::get_uniprot_and_taxa_ids(&proteins);
+    // calculate the lca
+    let lca = if cutoff_used {
+        Some(1)
+    } else {
+        searcher.retrieve_lca(&proteins)
+    };
+    // output the result
+    Some(PeptideSearchResult {
+        lca,
+        cutoff_used,
+        time_limit_used,
+        uniprot_accession_numbers,
+        taxa,
+    })
 }
 
 /// Search all the peptides in the given data json using the searcher.
@@ -98,8 +138,6 @@ async fn search(
     State(searcher): State<Arc<Searcher>>,
     data: Json<InputData>,
 ) -> Result<Json<OutputData>, StatusCode> {
-    
-    
     let res: Vec<SearchResult> = data
         .peptides
         .par_iter()
@@ -110,13 +148,20 @@ async fn search(
         .filter(|(_, search_result)| search_result.is_some())
         // transform search results into output
         .map(|(index, search_results)| {
-            let (taxon_id, cutoff_used, uniprot_acc, taxa) = search_results.unwrap();
+            let PeptideSearchResult {
+                lca,
+                cutoff_used,
+                time_limit_used,
+                uniprot_accession_numbers,
+                taxa,
+            } = search_results.unwrap();
             SearchResult {
                 sequence: data.peptides[index].clone(),
-                lca: taxon_id,
+                lca,
                 taxa,
-                uniprot_accessions: uniprot_acc,
-                cutoff_used
+                uniprot_accessions: uniprot_accession_numbers,
+                cutoff_used,
+                time_limit_used,
             }
         })
         .collect();
@@ -142,7 +187,7 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
         index_file,
         taxonomy,
     } = args;
-    
+
     let (sample_rate, sa) = load_binary(&index_file)?;
 
     let taxon_id_calculator = TaxonIdCalculator::new(&taxonomy, AggregationMethod::LcaStar);
@@ -162,7 +207,8 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
         // `GET /` goes to `root`
         .route("/", get(root))
         // `POST /search` goes to `calculate` and set max payload size to 5 MB
-        .route("/search", post(search)).layer(DefaultBodyLimit::max(5 * 10_usize.pow(6)))
+        .route("/search", post(search))
+        .layer(DefaultBodyLimit::max(5 * 10_usize.pow(6)))
         .with_state(searcher);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;

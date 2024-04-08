@@ -36,6 +36,9 @@ fn exit_status_to_result(name: &str, exit_status: ExitStatus) -> Result<(), Comp
 
 fn main() -> Result<(), Box<dyn Error>> {
     // compile the c library
+    Command::new("rm")
+        .args(["libsais/CMakeCache.txt"])
+        .status().unwrap_or_default(); // if removing fails, it is since the cmake cache did not exist, we just can ignore it
     exit_status_to_result(
         "cmake",
         Command::new("cmake")

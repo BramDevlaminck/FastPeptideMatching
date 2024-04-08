@@ -1,21 +1,107 @@
 use std::cmp::min;
 use std::collections::VecDeque;
+use std::fmt::{Display, Formatter};
 
 use umgap::taxon::TaxonId;
 
 use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
 use tsv_utils::{Protein, Proteins};
 
-use crate::searcher::BoundSearch::{MAXIMUM, MINIMUM};
+use crate::searcher::BoundSearch::{Maximum, Minimum};
+use crate::searcher::SearchMatchResult::{Found, NotFound, OutOfTime};
 use crate::sequence_bitpattern::SequenceBitPattern;
 use crate::suffix_to_protein_index::SuffixToProteinIndex;
+use crate::util::get_time_ms;
 use crate::Nullable;
 
 /// Enum indicating if we are searching for the minimum, or maximum bound in the suffix array
 #[derive(Clone, Copy, PartialEq)]
 enum BoundSearch {
-    MINIMUM,
-    MAXIMUM,
+    Minimum,
+    Maximum,
+}
+
+/// Enum to how many ms we want to spend at most to search 1 peptide
+pub enum MaxPeptideSearchTime {
+    Default,
+    Value(f64),
+    Unlimited,
+}
+
+impl Into<f64> for MaxPeptideSearchTime {
+    fn into(self) -> f64 {
+        match self {
+            MaxPeptideSearchTime::Default => 60000.0,
+            MaxPeptideSearchTime::Value(search_time) => search_time,
+            MaxPeptideSearchTime::Unlimited => f64::INFINITY,
+        }
+    }
+}
+
+// Enums to present the possible results for different functions
+
+#[derive(PartialEq, Debug)]
+pub enum BinarySearchBoundResult {
+    OutOfTime,
+    SearchResult((Vec<bool>, Vec<usize>)),
+}
+
+#[derive(PartialEq, Debug)]
+pub enum BoundSearchResult {
+    OutOfTime,
+    NoMatches,
+    SearchResult(Vec<(usize, usize)>),
+}
+
+#[derive(Debug)]
+pub enum SearchAllSuffixesResult {
+    OutOfTime,
+    MaxMatches(Vec<i64>),
+    SearchResult(Vec<i64>),
+}
+
+impl PartialEq for SearchAllSuffixesResult {
+    fn eq(&self, other: &Self) -> bool {
+        fn array_eq_unordered(arr1: &[i64], arr2: &[i64]) -> bool {
+            let mut arr1_copy = arr1.to_owned();
+            let mut arr2_copy = arr2.to_owned();
+
+            arr1_copy.sort();
+            arr2_copy.sort();
+
+            arr1_copy == arr2_copy
+        }
+
+        match (self, other) {
+            (SearchAllSuffixesResult::OutOfTime, SearchAllSuffixesResult::OutOfTime) => true,
+            (
+                SearchAllSuffixesResult::MaxMatches(arr1),
+                SearchAllSuffixesResult::MaxMatches(arr2),
+            ) => array_eq_unordered(arr1, arr2),
+            (
+                SearchAllSuffixesResult::SearchResult(arr1),
+                SearchAllSuffixesResult::SearchResult(arr2),
+            ) => array_eq_unordered(arr1, arr2),
+            _ => false,
+        }
+    }
+}
+
+#[derive(PartialEq, Debug)]
+pub enum SearchMatchResult {
+    OutOfTime,
+    NotFound,
+    Found,
+}
+
+impl Display for SearchMatchResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutOfTime => write!(f, "search time limit reached"),
+            NotFound => write!(f, "false"),
+            Found => write!(f, "true")
+        }
+    }
 }
 
 pub struct Searcher {
@@ -43,6 +129,11 @@ impl Searcher {
         }
     }
 
+    /// Compare function to perform the binary search
+    /// This function forwards progresses the search of the `search_string` as much as possible on the current `suffix`.
+    /// This search is a bit different depending on the current bound (searching for the min or max)
+    ///
+    /// When `equalize_i_and_l` is set to true this function also keeps track of which I's and L's we have progressed through and if we should start a new branch in the search tree
     fn compare(
         &self,
         search_string: &[u8],
@@ -52,39 +143,36 @@ impl Searcher {
         bound: BoundSearch,
     ) -> (bool, usize, Vec<usize>) {
         let mut positions_to_switch_i_and_l = vec![];
-        let mut index = (suffix as usize) + skip;
+        let mut index_in_suffix = (suffix as usize) + skip;
         let mut index_in_search_string = skip;
         let mut is_cond_or_equal = false;
 
         // Depending on if we are searching for the min of max bound our condition is different
         let condition_check = match bound {
-            MINIMUM => |a: u8, b: u8| a < b,
-            MAXIMUM => |a: u8, b: u8| a > b,
+            Minimum => |a: u8, b: u8| a < b,
+            Maximum => |a: u8, b: u8| a > b,
         };
 
         // match as long as possible
         while index_in_search_string < search_string.len()
-            && index < self.proteins.input_string.len()
-            && search_string[index_in_search_string] == self.proteins.input_string[index]
+            && index_in_suffix < self.proteins.input_string.len()
+            && search_string[index_in_search_string] == self.proteins.input_string[index_in_suffix]
         {
             // if we want to set I and L equal, we need to know where to "split"
-            if equalize_i_and_l
-                && search_string[index_in_search_string] == b'I'
-                && self.proteins.input_string[index] >= b'I'
-                && self.proteins.input_string[index] <= b'L'
+            if equalize_i_and_l && search_string[index_in_search_string] == b'I'
             {
                 positions_to_switch_i_and_l.push(index_in_search_string);
             }
-            index += 1;
+            index_in_suffix += 1;
             index_in_search_string += 1;
         }
         // check if match found OR current search string is smaller lexicographically (and the empty search string should not be found)
         if !search_string.is_empty()
             && (index_in_search_string == search_string.len()
-                || (index < self.proteins.input_string.len()
+                || (index_in_suffix < self.proteins.input_string.len()
                     && condition_check(
                         search_string[index_in_search_string],
-                        self.proteins.input_string[index],
+                        self.proteins.input_string[index_in_suffix],
                     )))
         {
             is_cond_or_equal = true;
@@ -93,10 +181,10 @@ impl Searcher {
         // Pattern of searching an 'L' is only different from searching a 'I' in 3 cases. This is when the character we compare it with is a 'J', 'K' or 'L'
         if equalize_i_and_l
             && index_in_search_string < search_string.len()
-            && index < self.proteins.input_string.len()
+            && index_in_suffix < self.proteins.input_string.len()
             && search_string[index_in_search_string] == b'I'
-            && (self.proteins.input_string[index] > b'I'
-                && self.proteins.input_string[index] <= b'L')
+            && (self.proteins.input_string[index_in_suffix] > b'I'
+                && self.proteins.input_string[index_in_suffix] <= b'L')
         {
             positions_to_switch_i_and_l.push(index_in_search_string);
         }
@@ -108,50 +196,39 @@ impl Searcher {
         )
     }
 
+    /// When `equalize_i_and_l` is set, this function adds the needed variants to the `to_visit` deque.
+    /// This is done using the correct bounds (`left`, `right`, `lcp_left` and `lcp_right`).
+    /// To prevent searching the same string multiple times we use a kind of bitvector (the `visited_strings` variable to keep track of which variants of the input sequence are already in the queue to be searched)
+    /// The `il_locations` vector contains all indices where there is an I or L in the `current_search_string`
     fn replace_i_with_l(
         equalize_i_and_l: bool,
-        to_visit: &mut VecDeque<(usize, usize, usize, usize, Vec<u8>, Option<usize>)>,
+        to_visit: &mut VecDeque<(usize, usize, usize, usize, Vec<u8>)>,
         current_search_string: &mut [u8],
         positions_to_switch_i_and_l: Vec<usize>,
         left: usize,
         right: usize,
         lcp_left: usize,
         lcp_right: usize,
-        current_min_l_location: Option<usize>,
         visited_strings: &mut SequenceBitPattern,
         il_locations: &Vec<usize>,
     ) {
         if equalize_i_and_l {
             for switch_location in positions_to_switch_i_and_l {
-                // TODO: current_min_l_location is possibly entirely unneeded since we also have the visited_strings hashset that tracks what is already visited
-                if current_min_l_location.is_none()
-                    || current_min_l_location.unwrap() < switch_location
-                {
-                    let mut search_string_copy = current_search_string.to_owned();
-                    search_string_copy[switch_location] = match search_string_copy[switch_location]
-                    {
-                        b'I' => b'L',
-                        _ => search_string_copy[switch_location],
-                    };
+                let mut search_string_copy = current_search_string.to_owned();
+                search_string_copy[switch_location] = match search_string_copy[switch_location] {
+                    b'I' => b'L',
+                    _ => search_string_copy[switch_location],
+                };
 
-                    // only add the IL variant of this string if it is not yet visited (or in the queue waiting to be visited)
-                    if !visited_strings.check_if_contains_and_add(&search_string_copy, &il_locations)
-                    {
-                        let new_min_l_location = if current_min_l_location.is_none() {
-                            Some(switch_location)
-                        } else {
-                            current_min_l_location
-                        };
-
-                        to_visit.push_back((
-                            left,
-                            right,
-                            lcp_left,
-                            lcp_right,
-                            search_string_copy.clone(),
-                            new_min_l_location,
-                        ));
-                    }
+                // only add the IL variant of this string if it is not yet visited (or in the queue waiting to be visited)
+                if !visited_strings.check_if_contains_and_add(&search_string_copy, il_locations) {
+                    to_visit.push_back((
+                        left,
+                        right,
+                        lcp_left,
+                        lcp_right,
+                        search_string_copy.clone(),
+                    ));
                 }
             }
         }
@@ -162,31 +239,22 @@ impl Searcher {
         bound: BoundSearch,
         search_string: &[u8],
         il_locations: &Vec<usize>,
-    ) -> (Vec<bool>, Vec<usize>) {
+        end_search_time: f64,
+    ) -> BinarySearchBoundResult {
         let equalize_i_and_l = !il_locations.is_empty();
         let mut visited_pattern = SequenceBitPattern::new(il_locations);
         let mut results = vec![];
         let mut found_array = vec![];
-        let mut configurations_to_visit: VecDeque<(
-            usize,
-            usize,
-            usize,
-            usize,
-            Vec<u8>,
-            Option<usize>,
-        )> = VecDeque::from([(0, self.sa.len(), 0, 0, search_string.to_owned(), None)]);
+        let mut configurations_to_visit: VecDeque<(usize, usize, usize, usize, Vec<u8>)> =
+            VecDeque::from([(0, self.sa.len(), 0, 0, search_string.to_owned())]);
 
-        // let mut visited_strings: HashSet<Vec<u8>> = HashSet::new();
-
-        while let Some((
-            mut left,
-            mut right,
-            mut lcp_left,
-            mut lcp_right,
-            mut search_string,
-            min_l_location,
-        )) = configurations_to_visit.pop_front()
+        while let Some((mut left, mut right, mut lcp_left, mut lcp_right, mut search_string)) =
+            configurations_to_visit.pop_front()
         {
+            if get_time_ms().unwrap() > end_search_time {
+                return BinarySearchBoundResult::OutOfTime
+            }
+
             let mut found = false;
 
             // repeat until search window is minimum size OR we matched the whole search string last iteration
@@ -210,7 +278,6 @@ impl Searcher {
                     right,
                     lcp_left,
                     lcp_right,
-                    min_l_location,
                     &mut visited_pattern,
                     il_locations,
                 );
@@ -218,7 +285,7 @@ impl Searcher {
                 found |= lcp_center == search_string.len();
 
                 // update the left and right bound, depending on if we are searching the min or max bound
-                if retval && bound == MINIMUM || !retval && bound == MAXIMUM {
+                if retval && bound == Minimum || !retval && bound == Maximum {
                     right = center;
                     lcp_right = lcp_center;
                 } else {
@@ -247,38 +314,42 @@ impl Searcher {
                     right,
                     lcp_left,
                     lcp_right,
-                    min_l_location,
                     &mut visited_pattern,
                     il_locations,
                 );
 
                 found |= lcp_center == search_string.len();
 
-                if bound == MINIMUM && retval {
+                if bound == Minimum && retval {
                     right = 0;
                 }
             }
 
             match bound {
-                MINIMUM => results.push(right),
-                MAXIMUM => results.push(left),
+                Minimum => results.push(right),
+                Maximum => results.push(left),
             }
             found_array.push(found)
         }
 
-        (found_array, results)
+        BinarySearchBoundResult::SearchResult((found_array, results))
     }
 
+    /// Search the min and max bound of the `search_string` in the suffix array.
+    /// If `equalize_i_and_l` is set to true we will also allow an L on every location an I is present.
+    /// This means that we expect the `search_string` to be preprocessed when we want to equalize I and L.
+    /// Every L should already be replaced by an I in the `search_string`!
     pub fn search_bounds(
         &self,
         search_string: &[u8],
         equalize_i_and_l: bool,
-    ) -> (bool, Vec<(usize, usize)>) {
+        end_search_time: f64,
+    ) -> BoundSearchResult {
         // if we equalize I and L, calculate the locations of these letters, otherwise just use the empty vector, since it will be unused
         // we will use the size as this vector to indicate if we should equalize I and L or not.
         // it is possible that equalize_i_and_l was set to true, but no I or L is part of the string, in that case we will spare all the extra checks if were are at an I or L
         let mut il_locations = vec![];
-        if equalize_i_and_l {
+        if equalize_i_and_l {   
             search_string
                 .iter()
                 .enumerate()
@@ -286,40 +357,75 @@ impl Searcher {
                     if character == b'I' || character == b'L' {
                         il_locations.push(index)
                     }
-                })
+                });
+            // 2^34 options in a bitvector is around 2 GB.
+            // If we allow more I's and L's, the program would ask for more memory than the server has and the program will crash
+            if il_locations.len() > 34 {
+                return BoundSearchResult::OutOfTime;
+            }
+        }
+        
+
+
+        let (found_min, min_bound) = match self.binary_search_bound(
+            Minimum,
+            search_string,
+            &il_locations,
+            end_search_time,
+        ) {
+            BinarySearchBoundResult::OutOfTime => return BoundSearchResult::OutOfTime,
+            BinarySearchBoundResult::SearchResult((found_min, found_max)) => (found_min, found_max),
+        };
+
+        if !found_min.iter().any(|&f| f) {
+            return BoundSearchResult::NoMatches;
         }
 
-        let (found_min, min_bound) = self.binary_search_bound(MINIMUM, search_string, &il_locations);
-        if !found_min.iter().any(|&f| f) {
-            return (false, vec![(0, self.sa.len())]);
-        }
-        let (found_max, max_bound) = self.binary_search_bound(MAXIMUM, search_string, &il_locations);
+        let (found_max, max_bound) = match self.binary_search_bound(
+            Maximum,
+            search_string,
+            &il_locations,
+            end_search_time,
+        ) {
+            BinarySearchBoundResult::OutOfTime => return BoundSearchResult::OutOfTime,
+            BinarySearchBoundResult::SearchResult((found_min, found_max)) => (found_min, found_max),
+        };
 
         // Only get the values from the min and max bound search that actually had a match
         let min_bounds: Vec<usize> = found_min
             .iter()
             .zip(min_bound)
-            .into_iter()
             .filter(|(&found, _)| found)
             .map(|(_, bound)| bound)
             .collect();
         let max_bounds: Vec<usize> = found_max
             .iter()
             .zip(max_bound)
-            .into_iter()
             .filter(|(&found, _)| found)
             .map(|(_, bound)| bound + 1)
             .collect();
 
-        (true, min_bounds.into_iter().zip(max_bounds).collect())
+        BoundSearchResult::SearchResult(min_bounds.into_iter().zip(max_bounds).collect())
     }
 
-    pub fn search_if_match(&self, search_string: &[u8], equalize_i_and_l: bool) -> bool {
+    /// Search if there is a match for the `search_string` can be found somewhere in the suffix array.
+    /// If `equalize_i_and_l` is set to true we will also allow an L on every location an I is present.
+    /// This means that we expect the `search_string` to be preprocessed when we want to equalize I and L.
+    /// Every L should already be replaced by an I in the `search_string`!
+    pub fn search_if_match(
+        &self,
+        search_string: &[u8],
+        equalize_i_and_l: bool,
+        max_peptide_search_time: MaxPeptideSearchTime,
+    ) -> SearchMatchResult {
+        let end_search_time: f64 =
+            get_time_ms().unwrap() + Into::<f64>::into(max_peptide_search_time);
+
         for skip in 0..self.sample_rate as usize {
-            let (found, min_max_bounds) =
-                self.search_bounds(&search_string[skip..], equalize_i_and_l);
+            let bound_search_res =
+                self.search_bounds(&search_string[skip..], equalize_i_and_l, end_search_time);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
-            if found {
+            if let BoundSearchResult::SearchResult(min_max_bounds) = bound_search_res {
                 for (min_bound, max_bound) in min_max_bounds {
                     let unmatched_prefix = &search_string[..skip];
                     // try all the partially matched suffixes
@@ -332,31 +438,41 @@ impl Searcher {
                                 equalize_i_and_l,
                             )
                         {
-                            return true;
+                            return Found;
                         }
                     }
                 }
+            } else if let BoundSearchResult::OutOfTime = bound_search_res {
+                return OutOfTime;
             }
         }
-        false
+        NotFound
     }
 
     /// Search all the suffixes that search string matches with
     /// The first value is a boolean indicating if the cutoff is used, the second value returns the actual taxa
+    ///
+    /// If `equalize_i_and_l` is set to true we will also allow an L on every location an I is present.
+    /// This means that we expect the `search_string` to be preprocessed when we want to equalize I and L.
+    /// Every L should already be replaced by an I in the `search_string`!
     #[inline]
     pub fn search_matching_suffixes(
         &self,
         search_string: &[u8],
         max_matches: usize,
         equalize_i_and_l: bool,
-    ) -> (bool, Vec<i64>) {
+        max_peptide_search_time: MaxPeptideSearchTime,
+    ) -> SearchAllSuffixesResult {
+        let end_search_time: f64 =
+            get_time_ms().unwrap() + Into::<f64>::into(max_peptide_search_time);
+
         let mut matching_suffixes: Vec<i64> = vec![];
         let mut skip: usize = 0;
         while skip < self.sample_rate as usize {
-            let (found, min_max_bounds) =
-                self.search_bounds(&search_string[skip..], equalize_i_and_l);
+            let search_bound_result =
+                self.search_bounds(&search_string[skip..], equalize_i_and_l, end_search_time);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
-            if found {
+            if let BoundSearchResult::SearchResult(min_max_bounds) = search_bound_result {
                 let unmatched_prefix = &search_string[..skip];
                 for (min_bound, max_bound) in min_max_bounds {
                     // try all the partially matched suffixes and store the matching suffixes in an array (stop when our max number of matches is reached)
@@ -376,17 +492,19 @@ impl Searcher {
 
                             // return if max number of matches is reached
                             if matching_suffixes.len() >= max_matches {
-                                return (true, matching_suffixes);
+                                return SearchAllSuffixesResult::MaxMatches(matching_suffixes);
                             }
                         }
 
                         sa_index += 1;
                     }
                 }
+            } else if let BoundSearchResult::OutOfTime = search_bound_result {
+                return SearchAllSuffixesResult::OutOfTime;
             }
             skip += 1;
         }
-        (false, matching_suffixes)
+        SearchAllSuffixesResult::SearchResult(matching_suffixes)
     }
 
     /// Returns true of the prefixes are the same
@@ -399,7 +517,7 @@ impl Searcher {
         equalize_i_and_l: bool,
     ) -> bool {
         if equalize_i_and_l {
-            search_string_prefix.into_iter().zip(index_prefix).all(
+            search_string_prefix.iter().zip(index_prefix).all(
                 |(&search_character, &index_character)| {
                     search_character == index_character
                         || (search_character == b'I' && index_character == b'L')
@@ -425,8 +543,15 @@ impl Searcher {
 
     /// Search all the Proteins that a given search_string matches with
     pub fn search_protein(&self, search_string: &[u8], equalize_i_and_l: bool) -> Vec<&Protein> {
-        let (_, matching_suffixes) =
-            self.search_matching_suffixes(search_string, usize::MAX, equalize_i_and_l);
+        let mut matching_suffixes = vec![];
+        if let SearchAllSuffixesResult::SearchResult(suffixes) = self.search_matching_suffixes(
+            search_string,
+            usize::MAX,
+            equalize_i_and_l,
+            MaxPeptideSearchTime::Unlimited,
+        ) {
+            matching_suffixes = suffixes;
+        }
         self.retrieve_proteins(&matching_suffixes)
     }
 
@@ -465,7 +590,10 @@ mod tests {
     use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
     use tsv_utils::{Protein, Proteins};
 
-    use crate::searcher::Searcher;
+    use crate::searcher::{
+        BoundSearchResult, MaxPeptideSearchTime, SearchAllSuffixesResult, SearchMatchResult,
+        Searcher,
+    };
     use crate::suffix_to_protein_index::SparseSuffixToProtein;
 
     fn get_example_proteins() -> Proteins {
@@ -512,20 +640,19 @@ mod tests {
             *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
         );
 
+        let end_time = f64::INFINITY;
+
         // search bounds 'A'
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'A'], false);
-        assert!(found);
-        assert_eq!(min_max_bounds, vec![(4, 9)]);
+        let bounds_res = searcher.search_bounds(&[b'A'], false, end_time);
+        assert_eq!(bounds_res, BoundSearchResult::SearchResult(vec![(4, 9)]));
 
         // search bounds '$'
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'$'], false);
-        assert!(found);
-        assert_eq!(min_max_bounds, vec![(0, 1)]);
+        let bounds_res = searcher.search_bounds(&[b'$'], false, end_time);
+        assert_eq!(bounds_res, BoundSearchResult::SearchResult(vec![(0, 1)]));
 
         // search bounds 'AC'
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'A', b'C'], false);
-        assert!(found);
-        assert_eq!(min_max_bounds, vec![(6, 8)]);
+        let bounds_res = searcher.search_bounds(&[b'A', b'C'], false, end_time);
+        assert_eq!(bounds_res, BoundSearchResult::SearchResult(vec![(6, 8)]));
     }
 
     #[test]
@@ -542,15 +669,28 @@ mod tests {
         );
 
         // search suffix 'VAA'
-        let (_, matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'V', b'A', b'A'], usize::MAX, false);
-        assert_eq!(matching_suffixes, vec![7]);
+        let found_suffixes = searcher.search_matching_suffixes(
+            &[b'V', b'A', b'A'],
+            usize::MAX,
+            false,
+            MaxPeptideSearchTime::Default,
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::SearchResult(vec![7])
+        );
 
         // search suffix 'AC'
-        let (_, mut matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'A', b'C'], usize::MAX, false);
-        matching_suffixes.sort();
-        assert_eq!(matching_suffixes, vec![5, 11]);
+        let found_suffixes = searcher.search_matching_suffixes(
+            &[b'A', b'C'],
+            usize::MAX,
+            false,
+            MaxPeptideSearchTime::Default,
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::SearchResult(vec![5, 11])
+        );
     }
 
     #[test]
@@ -568,15 +708,18 @@ mod tests {
             *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
         );
 
+        let end_time = f64::INFINITY;
+
         // search bounds 'I' with equal I and L
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'I'], true);
-        assert!(found);
-        assert_eq!(min_max_bounds, vec![(13, 14), (15, 17)]);
+        let bounds_res = searcher.search_bounds(&[b'I'], true, end_time);
+        assert_eq!(
+            bounds_res,
+            BoundSearchResult::SearchResult(vec![(13, 14), (15, 17)])
+        );
 
         // search bounds 'RIZ' with equal I and L
-        let (found, min_max_bounds) = searcher.search_bounds(&vec![b'R', b'I', b'Z'], true);
-        assert!(found);
-        assert_eq!(min_max_bounds, vec![(17, 18)]);
+        let bounds_res = searcher.search_bounds(&[b'R', b'I', b'Z'], true, end_time);
+        assert_eq!(bounds_res, BoundSearchResult::SearchResult(vec![(17, 18)]));
     }
 
     #[test]
@@ -593,9 +736,16 @@ mod tests {
         );
 
         // search bounds 'RIZ' with equal I and L
-        let (_, matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'R', b'I', b'Z'], usize::MAX, true);
-        assert_eq!(matching_suffixes, vec![16]);
+        let found_suffixes = searcher.search_matching_suffixes(
+            &[b'R', b'I', b'Z'],
+            usize::MAX,
+            true,
+            MaxPeptideSearchTime::Unlimited,
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::SearchResult(vec![16])
+        );
     }
 
     // test edge case where an I or L is the first index in the sparse SA.
@@ -622,9 +772,16 @@ mod tests {
         );
 
         // search bounds 'IM' with equal I and L
-        let (_, matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'I', b'M'], usize::MAX, true);
-        assert_eq!(matching_suffixes, vec![0]);
+        let found_suffixes = searcher.search_matching_suffixes(
+            &[b'I', b'M'],
+            usize::MAX,
+            true,
+            MaxPeptideSearchTime::Unlimited,
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::SearchResult(vec![0])
+        );
     }
 
     #[test]
@@ -640,14 +797,42 @@ mod tests {
             *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
         );
 
-        assert!(searcher.search_if_match(&vec![b'A', b'I'], false));
-        assert!(searcher.search_if_match(&vec![b'B', b'L'], false));
-        assert!(searcher.search_if_match(&vec![b'K', b'C', b'R'], false));
-        assert!(!searcher.search_if_match(&vec![b'A', b'L'], false));
-        assert!(!searcher.search_if_match(&vec![b'B', b'I'], false));
-        assert!(searcher.search_if_match(&vec![b'A', b'I'], true));
-        assert!(searcher.search_if_match(&vec![b'B', b'I'], true));
-        assert!(searcher.search_if_match(&vec![b'K', b'C', b'R', b'I'], true));
+        assert_eq!(
+            searcher.search_if_match(&[b'A', b'I'], false, MaxPeptideSearchTime::Unlimited),
+            SearchMatchResult::Found
+        );
+        assert_eq!(
+            searcher.search_if_match(&[b'B', b'L'], false, MaxPeptideSearchTime::Unlimited),
+            SearchMatchResult::Found
+        );
+        assert_eq!(
+            searcher.search_if_match(&[b'K', b'C', b'R'], false, MaxPeptideSearchTime::Unlimited),
+            SearchMatchResult::Found
+        );
+        assert_eq!(
+            searcher.search_if_match(&[b'A', b'L'], false, MaxPeptideSearchTime::Unlimited),
+            SearchMatchResult::NotFound
+        );
+        assert_eq!(
+            searcher.search_if_match(&[b'B', b'I'], false, MaxPeptideSearchTime::Unlimited),
+            SearchMatchResult::NotFound
+        );
+        assert_eq!(
+            searcher.search_if_match(&[b'A', b'I'], true, MaxPeptideSearchTime::Unlimited),
+            SearchMatchResult::Found
+        );
+        assert_eq!(
+            searcher.search_if_match(&[b'B', b'I'], true, MaxPeptideSearchTime::Unlimited),
+            SearchMatchResult::Found
+        );
+        assert_eq!(
+            searcher.search_if_match(
+                &[b'K', b'C', b'R', b'I'],
+                true,
+                MaxPeptideSearchTime::Unlimited
+            ),
+            SearchMatchResult::Found
+        );
     }
 
     #[test]
@@ -673,10 +858,16 @@ mod tests {
         );
 
         // search bounds 'IM' with equal I and L
-        let (_, mut matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'I'], usize::MAX, true);
-        matching_suffixes.sort();
-        assert_eq!(matching_suffixes, vec![2, 3, 4, 5]);
+        let found_suffixes = searcher.search_matching_suffixes(
+            &[b'I'],
+            usize::MAX,
+            true,
+            MaxPeptideSearchTime::Unlimited,
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::SearchResult(vec![2, 3, 4, 5])
+        );
     }
 
     #[test]
@@ -702,10 +893,16 @@ mod tests {
         );
 
         // search bounds 'IM' with equal I and L
-        let (_, mut matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'I', b'I'], usize::MAX, true);
-        matching_suffixes.sort();
-        assert_eq!(matching_suffixes, vec![0, 1, 2, 3, 4]);
+        let found_suffixes = searcher.search_matching_suffixes(
+            &[b'I', b'I'],
+            usize::MAX,
+            true,
+            MaxPeptideSearchTime::Unlimited,
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::SearchResult(vec![0, 1, 2, 3, 4])
+        );
     }
 
     #[test]
@@ -731,9 +928,52 @@ mod tests {
         );
 
         // search bounds 'IM' with equal I and L
-        let (_, mut matching_suffixes) =
-            searcher.search_matching_suffixes(&vec![b'I', b'I'], usize::MAX, true);
-        matching_suffixes.sort();
-        assert_eq!(matching_suffixes, vec![0, 1, 2, 3, 4]);
+        let found_suffixes = searcher.search_matching_suffixes(
+            &[b'I', b'I'],
+            usize::MAX,
+            true,
+            MaxPeptideSearchTime::Unlimited,
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::SearchResult(vec![0, 1, 2, 3, 4])
+        );
+    }
+
+    #[test]
+    fn test_timeout() {
+        let proteins = get_example_proteins();
+        let sa = vec![9, 0, 3, 12, 15, 6, 18];
+
+        let searcher = Searcher::new(
+            sa,
+            3,
+            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+            proteins,
+            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
+        );
+
+        // search suffix 'VAA'
+        let found_suffixes = searcher.search_matching_suffixes(
+            &[b'V', b'A', b'A'],
+            usize::MAX,
+            false,
+            MaxPeptideSearchTime::Value(0.0),
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::OutOfTime
+        );
+
+        // search suffix 'AC'
+        let found_suffixes = searcher.search_if_match(
+            &[b'A', b'C'],
+            false,
+            MaxPeptideSearchTime::Value(0.0),
+        );
+        assert_eq!(
+            found_suffixes,
+            SearchMatchResult::OutOfTime
+        );
     }
 }

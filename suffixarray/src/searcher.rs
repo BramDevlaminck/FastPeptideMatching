@@ -261,13 +261,20 @@ impl Searcher {
                 for sa_index in min_bound..max_bound {
                     let suffix = self.sa[sa_index] as usize;
                     // filter away matches where I was wrongfully equalized to L, and check the unmatched prefix
+                    // when I and L equalized, we only need to check the prefix, not the whole match, when the prefix is 0, we don't need to check at all
                     if suffix >= skip
-                        && Self::equals_using_il_equality(
-                            search_string,
-                            &self.proteins.input_string
-                                [suffix - skip..suffix - skip + search_string.len()],
+                        && (equalize_i_and_l && (skip == 0 ||
+                        Self::equals_using_il_equality(
+                            &search_string[..skip],
+                            &self.proteins.input_string[suffix - skip..suffix],
                             equalize_i_and_l,
-                        )
+                        ))
+                        || (!equalize_i_and_l && Self::equals_using_il_equality(
+                        search_string,
+                        &self.proteins.input_string
+                            [suffix - skip..suffix - skip + search_string.len()],
+                        equalize_i_and_l,
+                    )))
                     {
                         return Found;
                     }
@@ -300,14 +307,21 @@ impl Searcher {
                 let mut sa_index = min_bound;
                 while sa_index < max_bound {
                     let suffix = self.sa[sa_index] as usize;
-                    // filter away matches where I was wrongfully equalized to L and check the unmatched prefix
+                    // filter away matches where I was wrongfully equalized to L, and check the unmatched prefix
+                    // when I and L equalized, we only need to check the prefix, not the whole match, when the prefix is 0, we don't need to check at all
                     if suffix >= skip
-                        && Self::equals_using_il_equality(
+                        && (equalize_i_and_l && (skip == 0 ||
+                            Self::equals_using_il_equality(
+                                &search_string[..skip],
+                                &self.proteins.input_string[suffix - skip..suffix],
+                                equalize_i_and_l,
+                            ))
+                        || (!equalize_i_and_l && Self::equals_using_il_equality(
                             search_string,
                             &self.proteins.input_string
                                 [suffix - skip..suffix - skip + search_string.len()],
                             equalize_i_and_l,
-                        )
+                        )))
                     {
                         matching_suffixes.push((suffix - skip) as i64);
 

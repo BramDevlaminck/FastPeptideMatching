@@ -37,7 +37,7 @@ struct InputData {
     peptides: Vec<String>,
     #[serde(default = "default_cutoff")] // default value is 10000
     cutoff: usize,
-    #[serde(default = "bool::default")] // default value is false
+    #[serde(default = "bool::default")] // default value is false % TODO: maybe default should be true?
     equalize_I_and_L: bool,
 }
 

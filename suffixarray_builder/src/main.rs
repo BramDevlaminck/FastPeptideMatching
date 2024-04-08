@@ -18,7 +18,7 @@ fn main() {
     let data = data.unwrap();
     
     // calculate sa
-    let sa = build_sa(&data.into_bytes(), &construction_algorithm, sample_rate);
+    let sa = build_sa(&mut data.into_bytes(), &construction_algorithm, sample_rate);
     if let Err(err) = sa {
         eprintln!("{}", err);
         std::process::exit(1);

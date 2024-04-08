@@ -8,7 +8,7 @@ use clap::Parser;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use suffixarray::searcher::{MaxPeptideSearchTime, SearchAllSuffixesResult, Searcher};
+use suffixarray::searcher::{SearchAllSuffixesResult, Searcher};
 use suffixarray::suffix_to_protein_index::SparseSuffixToProtein;
 use suffixarray_builder::binary::load_binary;
 use tsv_utils::get_proteins_from_database_file;
@@ -53,7 +53,6 @@ struct SearchResult {
     taxa: Vec<usize>,
     uniprot_accessions: Vec<String>,
     cutoff_used: bool,
-    time_limit_used: bool,
 }
 
 // basic handler that responds with a static string
@@ -64,7 +63,6 @@ async fn root() -> &'static str {
 pub struct PeptideSearchResult {
     lca: Option<usize>,
     cutoff_used: bool,
-    time_limit_used: bool,
     uniprot_accession_numbers: Vec<String>,
     taxa: Vec<usize>,
 }
@@ -76,32 +74,15 @@ pub fn search_peptide(
     cutoff: usize,
     equalize_i_and_l: bool,
 ) -> Option<PeptideSearchResult> {
-    let mut peptide = peptide.to_uppercase();
-    if equalize_i_and_l {
-        // translate L to an I if we equalize them
-        peptide = peptide
-            .chars()
-            .map(|character| match character {
-                'L' => 'I',
-                _ => character,
-            })
-            .collect()
-    }
+    let peptide = peptide.to_uppercase();
 
     // words that are shorter than the sample rate are not searchable
     if peptide.len() < searcher.sample_rate as usize {
         return None;
     }
-
-    let max_time = if equalize_i_and_l {
-        MaxPeptideSearchTime::Value(5000.0)
-    } else {
-        MaxPeptideSearchTime::Unlimited
-    };
-
+    
     let suffix_search =
-        searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l, max_time);
-    let time_limit_used = suffix_search == SearchAllSuffixesResult::OutOfTime;
+        searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
     let mut suffixes = vec![];
     let mut cutoff_used = false;
     match suffix_search {
@@ -127,7 +108,6 @@ pub fn search_peptide(
     Some(PeptideSearchResult {
         lca,
         cutoff_used,
-        time_limit_used,
         uniprot_accession_numbers,
         taxa,
     })
@@ -151,7 +131,6 @@ async fn search(
             let PeptideSearchResult {
                 lca,
                 cutoff_used,
-                time_limit_used,
                 uniprot_accession_numbers,
                 taxa,
             } = search_results.unwrap();
@@ -161,7 +140,6 @@ async fn search(
                 taxa,
                 uniprot_accessions: uniprot_accession_numbers,
                 cutoff_used,
-                time_limit_used,
             }
         })
         .collect();
@@ -193,7 +171,6 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
     let taxon_id_calculator = TaxonIdCalculator::new(&taxonomy, AggregationMethod::LcaStar);
     let proteins = get_proteins_from_database_file(&database_file, &*taxon_id_calculator)?;
     let suffix_index_to_protein = Box::new(SparseSuffixToProtein::new(&proteins.input_string));
-
     let searcher = Arc::new(Searcher::new(
         sa,
         sample_rate,

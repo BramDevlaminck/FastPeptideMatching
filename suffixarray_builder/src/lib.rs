@@ -27,8 +27,15 @@ pub enum SAConstructionAlgorithm {
     LibSais,
 }
 
-pub fn build_sa(data: &Vec<u8>, construction_algorithm: &SAConstructionAlgorithm, sample_rate: u8) -> Result<Vec<i64>, Box<dyn Error>> {
-
+pub fn build_sa(data: &mut Vec<u8>, construction_algorithm: &SAConstructionAlgorithm, sample_rate: u8) -> Result<Vec<i64>, Box<dyn Error>> {
+    
+    // translate all L's to a I
+    for character in data.iter_mut() {
+        if *character == b'L' {
+            *character = b'I'
+        }
+    }
+    
     let mut sa = match construction_algorithm {
         SAConstructionAlgorithm::LibSais => libsais64_rs::sais64(data),
         SAConstructionAlgorithm::LibDivSufSort => {

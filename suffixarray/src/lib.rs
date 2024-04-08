@@ -7,9 +7,9 @@ use suffixarray_builder::{build_sa, SAConstructionAlgorithm};
 use suffixarray_builder::binary::{load_binary, write_binary};
 
 use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
-use tsv_utils::{get_proteins_from_database_file, read_lines};
+use tsv_utils::{get_proteins_from_database_file, get_text_from_database_file, read_lines};
 
-use crate::searcher::{MaxPeptideSearchTime, SearchAllSuffixesResult, Searcher};
+use crate::searcher::{SearchAllSuffixesResult, Searcher};
 use crate::suffix_to_protein_index::{
     DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
 };
@@ -18,7 +18,6 @@ use crate::util::get_time_ms;
 pub mod searcher;
 pub mod suffix_to_protein_index;
 pub mod util;
-mod sequence_bitpattern;
 
 /// Enum that represents the 5 kinds of search that we support
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
@@ -76,8 +75,7 @@ pub struct Arguments {
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy, AggregationMethod::LcaStar);
-    let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator)?;
-
+    
     let sa = match &args.load_index {
         // load SA from file
         Some(index_file_name) => {
@@ -89,9 +87,12 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         }
         // build the SA
         None => {
-            build_sa(&proteins.input_string, &args.construction_algorithm, args.sample_rate)?
+            let protein_sequences = get_text_from_database_file(&args.database_file, &*taxon_id_calculator)?;
+            build_sa(&mut protein_sequences.into_bytes(), &args.construction_algorithm, args.sample_rate)?
         }
     };
+    
+    let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator)?;
 
     if let Some(output) = &args.output {
         write_binary(args.sample_rate, &sa, output)?;
@@ -179,32 +180,17 @@ pub fn search_peptide(
     cutoff: usize,
     equalize_i_and_l: bool
 ) -> String {
-    let mut peptide = word.strip_suffix('\n').unwrap_or(word).to_uppercase();
-    if equalize_i_and_l { // translate L to an I if we equalize them
-        peptide = peptide.chars()
-            .map(|character| match character {
-                'L' => 'I',
-                _ => character,
-            })
-            .collect()
-    }
-
+    let peptide = word.strip_suffix('\n').unwrap_or(word).to_uppercase();
     // words that are shorter than the sample rate are not searchable
     if peptide.len() < searcher.sample_rate as usize {
         println!("/ (word too short short for SA sample size)");
         return String::new();
     }
-
-    let max_time = if equalize_i_and_l {
-        MaxPeptideSearchTime::Default
-    } else {
-        MaxPeptideSearchTime::Unlimited
-    };
     
     match *search_mode {
-        SearchMode::Match => format!("{}", searcher.search_if_match(peptide.as_bytes(), equalize_i_and_l, max_time)),
+        SearchMode::Match => format!("{}", searcher.search_if_match(peptide.as_bytes(), equalize_i_and_l)),
         SearchMode::MinMaxBound => {
-            let min_max_bounds = searcher.search_bounds(peptide.as_bytes(), equalize_i_and_l, max_time.into());
+            let min_max_bounds = searcher.search_bounds(peptide.as_bytes());
             format!("{:?}", min_max_bounds)
         }
         SearchMode::AllOccurrences => {
@@ -214,7 +200,7 @@ pub fn search_peptide(
             format!("{peptide_length};{number_of_proteins};") // TODO: return all the matching protein strings perhaps?
         }
         SearchMode::TaxonId => {
-            let suffixes = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l, max_time);
+            let suffixes = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
             let id = match suffixes {
                 SearchAllSuffixesResult::MaxMatches(_) => Some(1),
                 SearchAllSuffixesResult::SearchResult(suffixes) => {
@@ -231,7 +217,7 @@ pub fn search_peptide(
             }
         }
         SearchMode::Analyses => {
-            let suffix_search_result = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l, max_time);
+            let suffix_search_result = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
             let mut proteins = vec![];
             let id = match suffix_search_result {
                 SearchAllSuffixesResult::MaxMatches(suffixes) => {

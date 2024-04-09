@@ -563,7 +563,7 @@ mod tests {
             searcher.search_matching_suffixes(&[b'R', b'I', b'Z'], usize::MAX, false);
         assert_eq!(
             found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![])
+            SearchAllSuffixesResult::NoMatches
         );
     }
 

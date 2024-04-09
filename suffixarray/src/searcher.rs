@@ -51,7 +51,7 @@ pub enum BoundSearchResult {
 
 #[derive(Debug)]
 pub enum SearchAllSuffixesResult {
-    OutOfTime,
+    NoMatches,
     MaxMatches(Vec<i64>),
     SearchResult(Vec<i64>),
 }
@@ -69,7 +69,6 @@ impl PartialEq for SearchAllSuffixesResult {
         }
 
         match (self, other) {
-            (SearchAllSuffixesResult::OutOfTime, SearchAllSuffixesResult::OutOfTime) => true,
             (
                 SearchAllSuffixesResult::MaxMatches(arr1),
                 SearchAllSuffixesResult::MaxMatches(arr2),
@@ -78,6 +77,7 @@ impl PartialEq for SearchAllSuffixesResult {
                 SearchAllSuffixesResult::SearchResult(arr1),
                 SearchAllSuffixesResult::SearchResult(arr2),
             ) => array_eq_unordered(arr1, arr2),
+            (SearchAllSuffixesResult::NoMatches, SearchAllSuffixesResult::NoMatches) => true,
             _ => false,
         }
     }
@@ -335,7 +335,12 @@ impl Searcher {
             }
             skip += 1;
         }
-        SearchAllSuffixesResult::SearchResult(matching_suffixes)
+        
+        if matching_suffixes.is_empty() {
+            SearchAllSuffixesResult::NoMatches
+        } else {
+            SearchAllSuffixesResult::SearchResult(matching_suffixes)
+        }
     }
 
     /// Returns true of the prefixes are the same

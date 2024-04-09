@@ -80,21 +80,22 @@ pub fn search_peptide(
     if peptide.len() < searcher.sample_rate as usize {
         return None;
     }
-    
+
     let suffix_search =
         searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
-    let mut suffixes = vec![];
     let mut cutoff_used = false;
-    match suffix_search {
+    let suffixes = match suffix_search {
         SearchAllSuffixesResult::MaxMatches(matched_suffixes) => {
-            suffixes = matched_suffixes;
             cutoff_used = true;
+            matched_suffixes
         }
         SearchAllSuffixesResult::SearchResult(matched_suffixes) => {
-            suffixes = matched_suffixes;
+            matched_suffixes
         }
-        _ => {}
-    }
+        SearchAllSuffixesResult::NoMatches => {
+            return None;
+        },
+    };
 
     let proteins = searcher.retrieve_proteins(&suffixes);
     let (uniprot_accession_numbers, taxa) = Searcher::get_uniprot_and_taxa_ids(&proteins);

@@ -253,6 +253,13 @@ impl Searcher {
         search_string: &[u8],
         equalize_i_and_l: bool,
     ) -> SearchMatchResult {
+        let mut il_locations = vec![];
+        for (i, &character) in search_string.iter().enumerate() {
+            if character == b'I' || character == b'L' {
+                il_locations.push(i);
+            }
+        }
+
         for skip in 0..self.sample_rate as usize {
             let bound_search_res = self.search_bounds(&search_string[skip..]);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
@@ -263,18 +270,20 @@ impl Searcher {
                     // filter away matches where I was wrongfully equalized to L, and check the unmatched prefix
                     // when I and L equalized, we only need to check the prefix, not the whole match, when the prefix is 0, we don't need to check at all
                     if suffix >= skip
-                        && (equalize_i_and_l && (skip == 0 ||
-                        Self::equals_using_il_equality(
-                            &search_string[..skip],
-                            &self.proteins.input_string[suffix - skip..suffix],
-                            equalize_i_and_l,
-                        ))
-                        || (!equalize_i_and_l && Self::equals_using_il_equality(
-                        search_string,
-                        &self.proteins.input_string
-                            [suffix - skip..suffix - skip + search_string.len()],
-                        equalize_i_and_l,
-                    )))
+                        && ((skip == 0
+                            || Self::check_prefix(
+                                &search_string[..skip],
+                                &self.proteins.input_string[suffix - skip..suffix],
+                                equalize_i_and_l,
+                            ))
+                            && Self::check_suffix(
+                                skip,
+                                &il_locations,
+                                &search_string[skip..],
+                                &self.proteins.input_string
+                                    [suffix..suffix + search_string.len() - skip],
+                                equalize_i_and_l,
+                            ))
                     {
                         return Found;
                     }
@@ -298,6 +307,13 @@ impl Searcher {
         equalize_i_and_l: bool,
     ) -> SearchAllSuffixesResult {
         let mut matching_suffixes: Vec<i64> = vec![];
+        let mut il_locations = vec![];
+        for (i, &character) in search_string.iter().enumerate() {
+            if character == b'I' || character == b'L' {
+                il_locations.push(i);
+            }
+        }
+
         let mut skip: usize = 0;
         while skip < self.sample_rate as usize {
             let search_bound_result = self.search_bounds(&search_string[skip..]);
@@ -310,18 +326,20 @@ impl Searcher {
                     // filter away matches where I was wrongfully equalized to L, and check the unmatched prefix
                     // when I and L equalized, we only need to check the prefix, not the whole match, when the prefix is 0, we don't need to check at all
                     if suffix >= skip
-                        && (equalize_i_and_l && (skip == 0 ||
-                            Self::equals_using_il_equality(
+                        && ((skip == 0
+                            || Self::check_prefix(
                                 &search_string[..skip],
                                 &self.proteins.input_string[suffix - skip..suffix],
                                 equalize_i_and_l,
                             ))
-                        || (!equalize_i_and_l && Self::equals_using_il_equality(
-                            search_string,
-                            &self.proteins.input_string
-                                [suffix - skip..suffix - skip + search_string.len()],
-                            equalize_i_and_l,
-                        )))
+                            && Self::check_suffix(
+                                skip,
+                                &il_locations,
+                                &search_string[skip..],
+                                &self.proteins.input_string
+                                    [suffix..suffix + search_string.len() - skip],
+                                equalize_i_and_l,
+                            ))
                     {
                         matching_suffixes.push((suffix - skip) as i64);
 
@@ -335,7 +353,7 @@ impl Searcher {
             }
             skip += 1;
         }
-        
+
         if matching_suffixes.is_empty() {
             SearchAllSuffixesResult::NoMatches
         } else {
@@ -346,7 +364,7 @@ impl Searcher {
     /// Returns true of the prefixes are the same
     /// if `equalize_i_and_l` is set to true, L and I are considered the same
     #[inline]
-    fn equals_using_il_equality(
+    fn check_prefix(
         search_string_prefix: &[u8],
         index_prefix: &[u8],
         equalize_i_and_l: bool,
@@ -361,6 +379,34 @@ impl Searcher {
             )
         } else {
             search_string_prefix == index_prefix
+        }
+    }
+
+    /// Returns true if I or L equality is used, since the suffix will surely match then
+    /// otherwise we have to check the locations where an I or L was present
+    /// If there is a mismatch on 1 of these locations, the suffix does not match
+    fn check_suffix(
+        skip: usize,
+        il_locations: &[usize],
+        search_string: &[u8],
+        index_string: &[u8],
+        equalize_i_and_l: bool,
+    ) -> bool {
+        if equalize_i_and_l {
+            true
+        } else {
+            let mut i = 0;
+            while i < il_locations.len() && il_locations[i] < skip {
+                i += 1;
+            }
+            while i < il_locations.len() {
+                let index = il_locations[i] - skip;
+                if search_string[index] != index_string[index] {
+                    return false;
+                }
+                i += 1;
+            }
+            true
         }
     }
 
@@ -561,10 +607,7 @@ mod tests {
         // search bounds 'RIZ' without equal I and L
         let found_suffixes =
             searcher.search_matching_suffixes(&[b'R', b'I', b'Z'], usize::MAX, false);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::NoMatches
-        );
+        assert_eq!(found_suffixes, SearchAllSuffixesResult::NoMatches);
     }
 
     // test edge case where an I or L is the first index in the sparse SA.

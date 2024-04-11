@@ -261,6 +261,13 @@ impl Searcher {
         }
 
         for skip in 0..self.sample_rate as usize {
+            let mut il_locations_start = 0;
+            while il_locations_start < il_locations.len() && il_locations[il_locations_start] < skip {
+                il_locations_start += 1;
+            }
+            let il_locations_current_suffix = &il_locations[il_locations_start..];
+            let current_search_string_prefix = &search_string[..skip];
+            let current_search_string_suffix = &search_string[skip..];
             let bound_search_res = self.search_bounds(&search_string[skip..]);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
             if let BoundSearchResult::SearchResult((min_bound, max_bound)) = bound_search_res {
@@ -272,14 +279,14 @@ impl Searcher {
                     if suffix >= skip
                         && ((skip == 0
                             || Self::check_prefix(
-                                &search_string[..skip],
+                        current_search_string_prefix,
                                 &self.proteins.input_string[suffix - skip..suffix],
                                 equalize_i_and_l,
                             ))
                             && Self::check_suffix(
                                 skip,
-                                &il_locations,
-                                &search_string[skip..],
+                                il_locations_current_suffix,
+                                current_search_string_suffix,
                                 &self.proteins.input_string
                                     [suffix..suffix + search_string.len() - skip],
                                 equalize_i_and_l,
@@ -316,6 +323,13 @@ impl Searcher {
 
         let mut skip: usize = 0;
         while skip < self.sample_rate as usize {
+            let mut il_locations_start = 0;
+            while il_locations_start < il_locations.len() && il_locations[il_locations_start] < skip {
+                il_locations_start += 1;
+            }
+            let il_locations_current_suffix = &il_locations[il_locations_start..];
+            let current_search_string_prefix = &search_string[..skip];
+            let current_search_string_suffix = &search_string[skip..];
             let search_bound_result = self.search_bounds(&search_string[skip..]);
             // if the shorter part is matched, see if what goes before the matched suffix matches the unmatched part of the prefix
             if let BoundSearchResult::SearchResult((min_bound, max_bound)) = search_bound_result {
@@ -328,14 +342,14 @@ impl Searcher {
                     if suffix >= skip
                         && ((skip == 0
                             || Self::check_prefix(
-                                &search_string[..skip],
+                        current_search_string_prefix,
                                 &self.proteins.input_string[suffix - skip..suffix],
                                 equalize_i_and_l,
                             ))
                             && Self::check_suffix(
                                 skip,
-                                &il_locations,
-                                &search_string[skip..],
+                                il_locations_current_suffix,
+                                current_search_string_suffix,
                                 &self.proteins.input_string
                                     [suffix..suffix + search_string.len() - skip],
                                 equalize_i_and_l,
@@ -395,16 +409,11 @@ impl Searcher {
         if equalize_i_and_l {
             true
         } else {
-            let mut i = 0;
-            while i < il_locations.len() && il_locations[i] < skip {
-                i += 1;
-            }
-            while i < il_locations.len() {
-                let index = il_locations[i] - skip;
+            for &il_location in il_locations {
+                let index = il_location - skip;
                 if search_string[index] != index_string[index] {
                     return false;
                 }
-                i += 1;
             }
             true
         }

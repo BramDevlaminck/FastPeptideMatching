@@ -719,7 +719,6 @@ mod tests {
             *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
         );
 
-        // search bounds 'IM' with equal I and L
         let found_suffixes = searcher.search_matching_suffixes(&[b'I'], usize::MAX, true);
         assert_eq!(
             found_suffixes,
@@ -748,12 +747,42 @@ mod tests {
             proteins,
             *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
         );
-
-        // search bounds 'IM' with equal I and L
+        
         let found_suffixes = searcher.search_matching_suffixes(&[b'I', b'I'], usize::MAX, true);
         assert_eq!(
             found_suffixes,
             SearchAllSuffixesResult::SearchResult(vec![0, 1, 2, 3, 4])
+        );
+    }
+
+    #[test]
+    fn test_il_suffix_check() {
+        let text = "IIIILL$".to_string().into_bytes();
+
+        let proteins = Proteins {
+            input_string: text,
+            proteins: vec![Protein {
+                uniprot_id: String::new(),
+                sequence: (0, 13),
+                id: 0,
+            }],
+        };
+
+        let sparse_sa = vec![6, 4, 2, 0];
+        let searcher = Searcher::new(
+            sparse_sa,
+            2,
+            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
+            proteins,
+            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
+        );
+
+        // search all places where II is in the string IIIILL, but with a sparse SA
+        // this way we check if filtering the suffixes works as expected
+        let found_suffixes = searcher.search_matching_suffixes(&[b'I', b'I'], usize::MAX, false);
+        assert_eq!(
+            found_suffixes,
+            SearchAllSuffixesResult::SearchResult(vec![0, 1, 2])
         );
     }
 

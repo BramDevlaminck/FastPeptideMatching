@@ -28,16 +28,16 @@ impl FunctionAggregator {
 
         for fa in proteins.iter() {
             for annotation in fa.split(';') {
-                let annotation = annotation.to_string();
+                let annotation_string = annotation.to_string();
 
-                match annotation.chars().next() {
-                    Some('E') => ec_numbers.insert(annotation.clone()),
-                    Some('G') => go_terms.insert(annotation.clone()),
-                    Some('I') => interpros.insert(annotation.clone()),
+                match annotation_string.chars().next() {
+                    Some('E') => ec_numbers.insert(annotation_string.clone()),
+                    Some('G') => go_terms.insert(annotation_string.clone()),
+                    Some('I') => interpros.insert(annotation_string.clone()),
                     _ => false
                 };
 
-                data.entry(annotation).and_modify(|e| *e += 1).or_insert(1);
+                data.entry(annotation_string).and_modify(|e| *e += 1).or_insert(1);
             }
         }
 

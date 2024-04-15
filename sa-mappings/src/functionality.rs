@@ -34,7 +34,7 @@ impl FunctionAggregator {
                     Some('E') => ec_numbers.insert(annotation.clone()),
                     Some('G') => go_terms.insert(annotation.clone()),
                     Some('I') => interpros.insert(annotation.clone()),
-                    _ => panic!("Invalid annotation")
+                    _ => false
                 };
 
                 data.entry(annotation).and_modify(|e| *e += 1).or_insert(1);

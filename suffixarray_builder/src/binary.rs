@@ -70,7 +70,7 @@ fn read_sa_file(mut file: &File) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
     loop {
         let mut buffer = vec![];
         // use take in combination with read_to_end to ensure that the buffer will be completely filled (except when the file is smaller than the buffer)
-        let count = file.take(ONE_GIB as u64).read_to_end(&mut buffer)?;
+        let count = file.take(2 * ONE_GIB as u64).read_to_end(&mut buffer)?;
         if count == 0 {
             break;
         }

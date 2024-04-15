@@ -174,12 +174,19 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
         taxonomy,
     } = args;
 
+    eprintln!("Loading suffix array...");
     let (sample_rate, sa) = load_binary(&index_file)?;
 
+    eprintln!("Loading taxon file...");
     let taxon_id_calculator = TaxonAggregator::try_from_taxonomy_file(&taxonomy, AggregationMethod::LcaStar)?;
+
     let function_aggregator = FunctionAggregator {};
+
+    eprintln!("Loading proteins...");
     let proteins = Proteins::try_from_database_file(&database_file, &taxon_id_calculator)?;
     let suffix_index_to_protein = Box::new(SparseSuffixToProtein::new(&proteins.input_string));
+
+    eprintln!("Creating searcher...");
     let searcher = Arc::new(Searcher::new(
         sa,
         sample_rate,

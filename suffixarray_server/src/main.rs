@@ -6,7 +6,7 @@ use axum::routing::{get, post};
 use axum::{http::StatusCode, Json, Router};
 use clap::Parser;
 use rayon::prelude::*;
-use sa_mappings::functionality::FunctionAggregator;
+use sa_mappings::functionality::{FunctionAggregator, FunctionalAggregation};
 use sa_mappings::proteins::Proteins;
 use sa_mappings::taxonomy::{AggregationMethod, TaxonAggregator};
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,7 @@ struct SearchResult {
     lca: Option<usize>,
     taxa: Vec<usize>,
     uniprot_accessions: Vec<String>,
-    fa: Option<String>,
+    fa: Option<FunctionalAggregation>,
     cutoff_used: bool,
 }
 
@@ -67,7 +67,7 @@ pub struct PeptideSearchResult {
     cutoff_used: bool,
     uniprot_accession_numbers: Vec<String>,
     taxa: Vec<usize>,
-    fa: Option<String>,
+    fa: Option<FunctionalAggregation>,
 }
 
 /// Executes the search of 1 peptide

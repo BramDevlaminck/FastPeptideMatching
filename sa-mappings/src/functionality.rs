@@ -3,9 +3,16 @@
 
 use std::collections::{HashMap, HashSet};
 
+use serde::Serialize;
 use serde_json::json;
 
 use crate::proteins::Protein;
+
+#[derive(Debug, Serialize)]
+pub struct FunctionalAggregation {
+    pub counts: HashMap<String, u32>,
+    pub data: HashMap<String, u32>,
+}
 
 /// A struct that represents a function aggregator
 pub struct FunctionAggregator {}
@@ -19,36 +26,33 @@ impl FunctionAggregator {
     /// # Returns
     ///
     /// Returns a JSON string containing the aggregated functional annotations
-    pub fn aggregate(&self, proteins: Vec<String>) -> String {
-        let mut data: HashMap<String, u32> = HashMap::new();
+    pub fn aggregate(&self, proteins: Vec<String>) -> FunctionalAggregation {
+        let mut counts_array: [u32; 3] = [0; 3];
 
-        let mut ec_numbers: HashSet<String> = HashSet::new();
-        let mut go_terms: HashSet<String> = HashSet::new();
-        let mut interpros: HashSet<String> = HashSet::new();
+        let mut counts: HashMap<String, u32> = HashMap::new();
+        let mut data: HashMap<String, u32> = HashMap::new();
 
         for fa in proteins.iter() {
             for annotation in fa.split(';') {
-                let annotation_string = annotation.to_string();
+                let annotation = annotation.to_string();
 
-                match annotation_string.chars().next() {
-                    Some('E') => ec_numbers.insert(annotation_string.clone()),
-                    Some('G') => go_terms.insert(annotation_string.clone()),
-                    Some('I') => interpros.insert(annotation_string.clone()),
-                    _ => false
+                // Update the counts
+                match annotation.chars().next() {
+                    Some('E') => counts_array[0] += 1,
+                    Some('G') => counts_array[1] += 1,
+                    Some('I') => counts_array[2] += 1,
+                    _ => ()
                 };
 
-                data.entry(annotation_string).and_modify(|e| *e += 1).or_insert(1);
+                data.entry(annotation).and_modify(|e| *e += 1).or_insert(1);
             }
         }
 
-        json!({
-            "num": {
-                "all": proteins.len(),
-                "EC": ec_numbers.len(),
-                "GO": go_terms.len(),
-                "IPR": interpros.len(),
-            },
-            "data": data
-        }).to_string()
+        counts.insert("all".to_string(), counts_array.iter().sum());
+        counts.insert("EC".to_string(), counts_array[0]);
+        counts.insert("GO".to_string(), counts_array[1]);
+        counts.insert("IPR".to_string(), counts_array[2]);
+
+        FunctionalAggregation { counts, data }
     }
 }

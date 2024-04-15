@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::fmt::{Display, Formatter};
 
-use sa_mappings::functionality::FunctionAggregator;
+use sa_mappings::functionality::{FunctionAggregator, FunctionalAggregation};
 use sa_mappings::proteins::{Protein, Proteins};
 use sa_mappings::taxonomy::TaxonAggregator;
 use umgap::taxon::TaxonId;
@@ -458,13 +458,9 @@ impl Searcher {
         }
     }
 
-    pub fn retrieve_function(&self, proteins: &[&Protein]) -> Option<String> {
+    pub fn retrieve_function(&self, proteins: &[&Protein]) -> Option<FunctionalAggregation> {
         let res = self.function_aggregator.aggregate(proteins.iter().map(|prot| prot.get_functional_annotations()).collect());
-        if res.is_empty() {
-            None
-        } else {
-            Some(res)
-        }
+        Some(res)
     }
 
     /// Fetch the UniProt accession and taxa for all the proteins

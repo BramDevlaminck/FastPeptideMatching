@@ -1,0 +1,32 @@
+levels                                          - entry point
+    | level 1                                   - uniq name of this level
+        - layout                                - start of the layout section
+            | # # # # # #                       - each line represents a row
+            | # . . > . #                       -   #   : wall
+            | # . .   . #                       -   .   : walkable space 
+            | # # . . . #                       -       : void
+            |   # # # # #                       -   >^<v: direction of tiles
+        
+        - players                               - start of the players section
+            | robot 1                           - uniq name of this player
+                * position ( 0, 0 )             - valid position given the layout 
+                * color ( red )                 - valid color { red, green, blue, orange, gray, purple }
+                * strength ( 1 )                - number or infinite
+                * selected ( true )             - true or false
+
+        - crates                                - start of the crates section
+            | crate                             - uniq name of this crate
+                * position ( 0, 0 )             - valid position given the layout
+                * color ( red )                 - valid color { red, green, blue, orange, gray, purple }
+                * weight ( 1 )                  - number or infinite
+
+        - storages                              - start of the storages section
+            | storage                           - uniq name of this storage
+                * position ( 0, 0 )             - valid position given the layout
+                * color ( red )                 - valid color { red, green, blue, orange, gray, purple }
+
+        - spots                                 - start of the spots section
+            | spot                              - uniq name of this spot
+                * position ( 0, 0 )             - valid position given the layout
+                * color ( blue )                - valid color { red, green, blue, orange, gray, purple }
+                * durability ( 1 )              - amount of times this spot can be used

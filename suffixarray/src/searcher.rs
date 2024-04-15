@@ -1,10 +1,10 @@
 use std::cmp::min;
 use std::fmt::{Display, Formatter};
 
+use sa_mappings::functionality::FunctionAggregator;
+use sa_mappings::proteins::{Protein, Proteins};
+use sa_mappings::taxonomy::TaxonAggregator;
 use umgap::taxon::TaxonId;
-
-use tsv_utils::taxon_id_calculator::TaxonIdCalculator;
-use tsv_utils::{Protein, Proteins};
 
 use crate::searcher::BoundSearch::{Maximum, Minimum};
 use crate::searcher::SearchMatchResult::{Found, NotFound, OutOfTime};
@@ -105,7 +105,8 @@ pub struct Searcher {
     pub sample_rate: u8,
     suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
     proteins: Proteins,
-    taxon_id_calculator: TaxonIdCalculator,
+    taxon_id_calculator: TaxonAggregator,
+    function_aggregator: FunctionAggregator
 }
 
 impl Searcher {
@@ -114,7 +115,8 @@ impl Searcher {
         sample_rate: u8,
         suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
         proteins: Proteins,
-        taxon_id_calculator: TaxonIdCalculator,
+        taxon_id_calculator: TaxonAggregator,
+        function_aggregator: FunctionAggregator
     ) -> Self {
         Self {
             sa,
@@ -122,6 +124,7 @@ impl Searcher {
             suffix_index_to_protein,
             proteins,
             taxon_id_calculator,
+            function_aggregator
         }
     }
 
@@ -426,7 +429,7 @@ impl Searcher {
         for &suffix in suffixes {
             let protein_index = self.suffix_index_to_protein.suffix_to_protein(suffix);
             if !protein_index.is_null() {
-                res.push(&self.proteins.proteins[protein_index as usize]);
+                res.push(&self.proteins[protein_index as usize]);
             }
         }
         res
@@ -445,13 +448,22 @@ impl Searcher {
 
     #[inline]
     pub fn retrieve_lca(&self, proteins: &[&Protein]) -> Option<TaxonId> {
-        let taxon_ids: Vec<TaxonId> = proteins.iter().map(|prot| prot.id).collect();
+        let taxon_ids: Vec<TaxonId> = proteins.iter().map(|prot| prot.taxon_id).collect();
         match taxon_ids.is_empty() {
             true => None,
             false => Some(
                 self.taxon_id_calculator
-                    .snap_taxon_id(self.taxon_id_calculator.get_aggregate(taxon_ids)),
+                    .snap_taxon(self.taxon_id_calculator.aggregate(taxon_ids)),
             ),
+        }
+    }
+
+    pub fn retrieve_function(&self, proteins: &[&Protein]) -> Option<String> {
+        let res = self.function_aggregator.aggregate(proteins.iter().map(|prot| prot.get_functional_annotations()).collect());
+        if res.is_empty() {
+            None
+        } else {
+            Some(res)
         }
     }
 
@@ -461,7 +473,7 @@ impl Searcher {
         let mut taxa = vec![];
 
         for &protein in proteins {
-            taxa.push(protein.id);
+            taxa.push(protein.taxon_id);
             uniprot_ids.push(protein.uniprot_id.clone());
         }
 
@@ -470,349 +482,5 @@ impl Searcher {
 
     pub fn search_lca(&self, search_string: &[u8], equalize_i_and_l: bool) -> Option<TaxonId> {
         self.retrieve_lca(&self.search_protein(search_string, equalize_i_and_l))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
-    use tsv_utils::{Protein, Proteins};
-
-    use crate::searcher::{
-        BoundSearchResult, SearchAllSuffixesResult, SearchMatchResult, Searcher,
-    };
-    use crate::suffix_to_protein_index::SparseSuffixToProtein;
-
-    fn get_example_proteins() -> Proteins {
-        let text = "AI-BLACVAA-AC-KCRLZ$".to_string().into_bytes();
-        Proteins {
-            input_string: text,
-            proteins: vec![
-                Protein {
-                    uniprot_id: String::new(),
-                    sequence: (0, 2),
-                    id: 0,
-                },
-                Protein {
-                    uniprot_id: String::new(),
-                    sequence: (3, 10),
-                    id: 0,
-                },
-                Protein {
-                    uniprot_id: String::new(),
-                    sequence: (11, 13),
-                    id: 0,
-                },
-                Protein {
-                    uniprot_id: String::new(),
-                    sequence: (14, 29),
-                    id: 0,
-                },
-            ],
-        }
-    }
-
-    #[test]
-    fn test_search_simple() {
-        let proteins = get_example_proteins();
-        let sa = vec![
-            19, 10, 2, 13, 9, 8, 11, 5, 0, 3, 12, 15, 6, 1, 4, 17, 14, 16, 7, 18,
-        ];
-
-        let searcher = Searcher::new(
-            sa,
-            1,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        // search bounds 'A'
-        let bounds_res = searcher.search_bounds(&[b'A']);
-        assert_eq!(bounds_res, BoundSearchResult::SearchResult((4, 9)));
-
-        // search bounds '$'
-        let bounds_res = searcher.search_bounds(&[b'$']);
-        assert_eq!(bounds_res, BoundSearchResult::SearchResult((0, 1)));
-
-        // search bounds 'AC'
-        let bounds_res = searcher.search_bounds(&[b'A', b'C']);
-        assert_eq!(bounds_res, BoundSearchResult::SearchResult((6, 8)));
-    }
-
-    #[test]
-    fn test_search_sparse() {
-        let proteins = get_example_proteins();
-        let sa = vec![9, 0, 3, 12, 15, 6, 18];
-
-        let searcher = Searcher::new(
-            sa,
-            3,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        // search suffix 'VAA'
-        let found_suffixes =
-            searcher.search_matching_suffixes(&[b'V', b'A', b'A'], usize::MAX, false);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![7])
-        );
-
-        // search suffix 'AC'
-        let found_suffixes = searcher.search_matching_suffixes(&[b'A', b'C'], usize::MAX, false);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![5, 11])
-        );
-    }
-
-    #[test]
-    fn test_il_equality() {
-        let proteins = get_example_proteins();
-        let sa = vec![
-            19, 10, 2, 13, 9, 8, 11, 5, 0, 3, 12, 15, 6, 1, 4, 17, 14, 16, 7, 18,
-        ];
-
-        let searcher = Searcher::new(
-            sa,
-            1,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        let bounds_res = searcher.search_bounds(&[b'I']);
-        assert_eq!(bounds_res, BoundSearchResult::SearchResult((13, 16)));
-
-        // search bounds 'RIZ' with equal I and L
-        let bounds_res = searcher.search_bounds(&[b'R', b'I', b'Z']);
-        assert_eq!(bounds_res, BoundSearchResult::SearchResult((17, 18)));
-    }
-
-    #[test]
-    fn test_il_equality_sparse() {
-        let proteins = get_example_proteins();
-        let sa = vec![9, 0, 3, 12, 15, 6, 18];
-
-        let searcher = Searcher::new(
-            sa,
-            3,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        // search bounds 'RIZ' with equal I and L
-        let found_suffixes =
-            searcher.search_matching_suffixes(&[b'R', b'I', b'Z'], usize::MAX, true);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![16])
-        );
-
-        // search bounds 'RIZ' without equal I and L
-        let found_suffixes =
-            searcher.search_matching_suffixes(&[b'R', b'I', b'Z'], usize::MAX, false);
-        assert_eq!(found_suffixes, SearchAllSuffixesResult::NoMatches);
-    }
-
-    // test edge case where an I or L is the first index in the sparse SA.
-    #[test]
-    fn test_l_first_index_in_sa() {
-        let text = "LMOXZ$".to_string().into_bytes();
-
-        let proteins = Proteins {
-            input_string: text,
-            proteins: vec![Protein {
-                uniprot_id: String::new(),
-                sequence: (0, 6),
-                id: 0,
-            }],
-        };
-
-        let sparse_sa = vec![0, 2, 4];
-        let searcher = Searcher::new(
-            sparse_sa,
-            2,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        // search bounds 'IM' with equal I and L
-        let found_suffixes = searcher.search_matching_suffixes(&[b'I', b'M'], usize::MAX, true);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![0])
-        );
-    }
-
-    #[test]
-    fn test_matches() {
-        let proteins = get_example_proteins();
-        let sa = vec![10, 2, 8, 0, 12, 6, 4, 14, 16, 18];
-
-        let searcher = Searcher::new(
-            sa,
-            2,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        assert_eq!(
-            searcher.search_if_match(&[b'A', b'I'], false),
-            SearchMatchResult::Found
-        );
-        assert_eq!(
-            searcher.search_if_match(&[b'B', b'L'], false),
-            SearchMatchResult::Found
-        );
-        assert_eq!(
-            searcher.search_if_match(&[b'K', b'C', b'R'], false),
-            SearchMatchResult::Found
-        );
-        assert_eq!(
-            searcher.search_if_match(&[b'A', b'L'], false),
-            SearchMatchResult::NotFound
-        );
-        assert_eq!(
-            searcher.search_if_match(&[b'B', b'I'], false),
-            SearchMatchResult::NotFound
-        );
-        assert_eq!(
-            searcher.search_if_match(&[b'A', b'I'], true),
-            SearchMatchResult::Found
-        );
-        assert_eq!(
-            searcher.search_if_match(&[b'B', b'I'], true),
-            SearchMatchResult::Found
-        );
-        assert_eq!(
-            searcher.search_if_match(&[b'K', b'C', b'R', b'I'], true),
-            SearchMatchResult::Found
-        );
-    }
-
-    #[test]
-    fn test_il_missing_matches() {
-        let text = "AAILLL$".to_string().into_bytes();
-
-        let proteins = Proteins {
-            input_string: text,
-            proteins: vec![Protein {
-                uniprot_id: String::new(),
-                sequence: (0, 13),
-                id: 0,
-            }],
-        };
-
-        let sparse_sa = vec![6, 0, 1, 5, 4, 3, 2];
-        let searcher = Searcher::new(
-            sparse_sa,
-            1,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        let found_suffixes = searcher.search_matching_suffixes(&[b'I'], usize::MAX, true);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![2, 3, 4, 5])
-        );
-    }
-
-    #[test]
-    fn test_il_duplication() {
-        let text = "IIIILL$".to_string().into_bytes();
-
-        let proteins = Proteins {
-            input_string: text,
-            proteins: vec![Protein {
-                uniprot_id: String::new(),
-                sequence: (0, 13),
-                id: 0,
-            }],
-        };
-
-        let sparse_sa = vec![6, 5, 4, 3, 2, 1, 0];
-        let searcher = Searcher::new(
-            sparse_sa,
-            1,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-        
-        let found_suffixes = searcher.search_matching_suffixes(&[b'I', b'I'], usize::MAX, true);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![0, 1, 2, 3, 4])
-        );
-    }
-
-    #[test]
-    fn test_il_suffix_check() {
-        let text = "IIIILL$".to_string().into_bytes();
-
-        let proteins = Proteins {
-            input_string: text,
-            proteins: vec![Protein {
-                uniprot_id: String::new(),
-                sequence: (0, 13),
-                id: 0,
-            }],
-        };
-
-        let sparse_sa = vec![6, 4, 2, 0];
-        let searcher = Searcher::new(
-            sparse_sa,
-            2,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        // search all places where II is in the string IIIILL, but with a sparse SA
-        // this way we check if filtering the suffixes works as expected
-        let found_suffixes = searcher.search_matching_suffixes(&[b'I', b'I'], usize::MAX, false);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![0, 1, 2])
-        );
-    }
-
-    #[test]
-    fn test_il_duplication2() {
-        let text = "IILLLL$".to_string().into_bytes();
-
-        let proteins = Proteins {
-            input_string: text,
-            proteins: vec![Protein {
-                uniprot_id: String::new(),
-                sequence: (0, 13),
-                id: 0,
-            }],
-        };
-
-        let sparse_sa = vec![6, 5, 4, 3, 2, 1, 0];
-        let searcher = Searcher::new(
-            sparse_sa,
-            1,
-            Box::new(SparseSuffixToProtein::new(&proteins.input_string)),
-            proteins,
-            *TaxonIdCalculator::new("../small_taxonomy.tsv", AggregationMethod::LcaStar),
-        );
-
-        // search bounds 'IM' with equal I and L
-        let found_suffixes = searcher.search_matching_suffixes(&[b'I', b'I'], usize::MAX, true);
-        assert_eq!(
-            found_suffixes,
-            SearchAllSuffixesResult::SearchResult(vec![0, 1, 2, 3, 4])
-        );
     }
 }

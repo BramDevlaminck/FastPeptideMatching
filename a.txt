@@ -1,0 +1,41 @@
+levels
+    | level 1
+        - layout
+            | # # # # # #
+            | # . . . . #
+            | # . .   . #
+            | # # . . . #
+            |   # # # # #
+        
+        - player
+            * position ( 0, 0 )
+            * color ( red )
+            * strength ( 1 )
+            * selected ( true )
+
+        - crates
+            | crate
+                * position ( 0, 0 )
+                * color ( red )
+                * weight ( 1 )
+            | crate
+                * position ( 0, 0 )
+                * color ( red )
+                * weight ( 1 )
+
+        - storages
+            | storage
+                * position ( 0, 0 )
+                * color ( red )
+
+        - spots
+            | spot
+                * position ( 0, 0 )
+                * color ( blue )
+    | level two
+        - todo
+
+
+
+
+

@@ -6,13 +6,14 @@ use axum::routing::{get, post};
 use axum::{http::StatusCode, Json, Router};
 use clap::Parser;
 use rayon::prelude::*;
+use sa_mappings::functionality::FunctionAggregator;
+use sa_mappings::proteins::Proteins;
+use sa_mappings::taxonomy::{AggregationMethod, TaxonAggregator};
 use serde::{Deserialize, Serialize};
 
 use suffixarray::searcher::{SearchAllSuffixesResult, Searcher};
 use suffixarray::suffix_to_protein_index::SparseSuffixToProtein;
 use suffixarray_builder::binary::load_binary;
-use tsv_utils::get_proteins_from_database_file;
-use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
 
 #[derive(Parser, Debug)]
 pub struct Arguments {
@@ -52,6 +53,7 @@ struct SearchResult {
     lca: Option<usize>,
     taxa: Vec<usize>,
     uniprot_accessions: Vec<String>,
+    fa: Option<String>,
     cutoff_used: bool,
 }
 
@@ -65,6 +67,7 @@ pub struct PeptideSearchResult {
     cutoff_used: bool,
     uniprot_accession_numbers: Vec<String>,
     taxa: Vec<usize>,
+    fa: Option<String>,
 }
 
 /// Executes the search of 1 peptide
@@ -105,12 +108,14 @@ pub fn search_peptide(
     } else {
         searcher.retrieve_lca(&proteins)
     };
+    let fa = searcher.retrieve_function(&proteins);
     // output the result
     Some(PeptideSearchResult {
         lca,
         cutoff_used,
         uniprot_accession_numbers,
         taxa,
+        fa
     })
 }
 
@@ -134,12 +139,14 @@ async fn search(
                 cutoff_used,
                 uniprot_accession_numbers,
                 taxa,
+                fa,
             } = search_results.unwrap();
             SearchResult {
                 sequence: data.peptides[index].clone(),
                 lca,
                 taxa,
                 uniprot_accessions: uniprot_accession_numbers,
+                fa,
                 cutoff_used,
             }
         })
@@ -169,15 +176,17 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
 
     let (sample_rate, sa) = load_binary(&index_file)?;
 
-    let taxon_id_calculator = TaxonIdCalculator::new(&taxonomy, AggregationMethod::LcaStar);
-    let proteins = get_proteins_from_database_file(&database_file, &*taxon_id_calculator)?;
+    let taxon_id_calculator = TaxonAggregator::try_from_taxonomy_file(&taxonomy, AggregationMethod::LcaStar)?;
+    let function_aggregator = FunctionAggregator {};
+    let proteins = Proteins::try_from_database_file(&database_file, &taxon_id_calculator)?;
     let suffix_index_to_protein = Box::new(SparseSuffixToProtein::new(&proteins.input_string));
     let searcher = Arc::new(Searcher::new(
         sa,
         sample_rate,
         suffix_index_to_protein,
         proteins,
-        *taxon_id_calculator,
+        taxon_id_calculator,
+        function_aggregator
     ));
 
     // build our application with a route

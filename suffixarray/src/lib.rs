@@ -3,11 +3,12 @@ use std::num::NonZeroUsize;
 
 use clap::{arg, Parser, ValueEnum};
 use rayon::prelude::*;
+use sa_mappings::functionality::FunctionAggregator;
+use sa_mappings::proteins::Proteins;
+use sa_mappings::taxonomy::{AggregationMethod, TaxonAggregator};
 use suffixarray_builder::{build_sa, SAConstructionAlgorithm};
 use suffixarray_builder::binary::{load_binary, write_binary};
-
-use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator};
-use tsv_utils::{get_proteins_from_database_file, get_text_from_database_file, read_lines};
+use tsv_utils::read_lines;
 
 use crate::searcher::{SearchAllSuffixesResult, Searcher};
 use crate::suffix_to_protein_index::{
@@ -74,7 +75,7 @@ pub struct Arguments {
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
-    let taxon_id_calculator = TaxonIdCalculator::new(&args.taxonomy, AggregationMethod::LcaStar);
+    let taxon_id_calculator = TaxonAggregator::try_from_taxonomy_file(&args.taxonomy, AggregationMethod::LcaStar)?;
     
     let sa = match &args.load_index {
         // load SA from file
@@ -87,12 +88,12 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         }
         // build the SA
         None => {
-            let protein_sequences = get_text_from_database_file(&args.database_file, &*taxon_id_calculator)?;
-            build_sa(&mut protein_sequences.into_bytes(), &args.construction_algorithm, args.sample_rate)?
+            let protein_sequences = Proteins::try_from_database_file(&args.database_file, &taxon_id_calculator)?;
+            build_sa(&mut protein_sequences.input_string.clone(), &args.construction_algorithm, args.sample_rate)?
         }
     };
     
-    let proteins = get_proteins_from_database_file(&args.database_file, &*taxon_id_calculator)?;
+    let proteins = Proteins::try_from_database_file(&args.database_file, &taxon_id_calculator)?;
 
     if let Some(output) = &args.output {
         write_binary(args.sample_rate, &sa, output)?;
@@ -117,12 +118,15 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
             }
         };
 
+    let functional_aggregator = FunctionAggregator {};
+
     let searcher = Searcher::new(
         sa,
         args.sample_rate,
         suffix_index_to_protein, 
         proteins,
-        *taxon_id_calculator,
+        taxon_id_calculator,
+        functional_aggregator
     );
 
     execute_search(&searcher, &args)?;

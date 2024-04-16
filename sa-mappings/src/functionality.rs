@@ -43,6 +43,7 @@ impl FunctionAggregator {
                     Some('I') => proteins_with_ipr.insert(protein.uniprot_id.clone()),
                     _ => false
                 };
+                
                 data.entry(annotation.to_string()).and_modify(|c| *c += 1).or_insert(1);
             }
         }
@@ -52,6 +53,8 @@ impl FunctionAggregator {
         counts.insert("EC".to_string(), proteins_with_ec.len());
         counts.insert("GO".to_string(), proteins_with_go.len());
         counts.insert("IPR".to_string(), proteins_with_ipr.len());
+
+        data.remove("");
 
         FunctionalAggregation { counts, data }
     }

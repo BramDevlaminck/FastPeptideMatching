@@ -459,7 +459,7 @@ impl Searcher {
     }
 
     pub fn retrieve_function(&self, proteins: &[&Protein]) -> Option<FunctionalAggregation> {
-        let res = self.function_aggregator.aggregate(proteins.iter().map(|prot| prot.get_functional_annotations()).collect());
+        let res = self.function_aggregator.aggregate(proteins.to_vec());
         Some(res)
     }
 

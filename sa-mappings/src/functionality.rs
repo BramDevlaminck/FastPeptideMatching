@@ -10,7 +10,7 @@ use crate::proteins::Protein;
 
 #[derive(Debug, Serialize)]
 pub struct FunctionalAggregation {
-    pub counts: HashMap<String, u32>,
+    pub counts: HashMap<String, usize>,
     pub data: HashMap<String, u32>,
 }
 
@@ -26,32 +26,32 @@ impl FunctionAggregator {
     /// # Returns
     ///
     /// Returns a JSON string containing the aggregated functional annotations
-    pub fn aggregate(&self, proteins: Vec<String>) -> FunctionalAggregation {
-        let mut counts_array: [u32; 3] = [0; 3];
+    pub fn aggregate(&self, proteins: Vec<&Protein>) -> FunctionalAggregation {
+        // Keep track of the proteins that have a certain annotation
+        let mut proteins_with_ec: HashSet<String> = HashSet::new();
+        let mut proteins_with_go: HashSet<String> = HashSet::new();
+        let mut proteins_with_ipr: HashSet<String> = HashSet::new();
 
-        let mut counts: HashMap<String, u32> = HashMap::new();
+        // Keep track of the counts of the different annotations
         let mut data: HashMap<String, u32> = HashMap::new();
 
-        let mut update = |i: usize, fa: &str| {
-            counts_array[i] += 1;
-            data.entry(fa.to_string()).and_modify(|e| *e += 1).or_insert(1);
-        };
-
-        for fa in proteins.iter() {
-            for annotation in fa.split(';') {
+        for protein in proteins.iter() {
+            for annotation in protein.get_functional_annotations().split(';') {
                 match annotation.chars().next() {
-                    Some('E') => update(0, annotation),
-                    Some('G') => update(1, annotation),
-                    Some('I') => update(2, annotation),
-                    _ => ()
+                    Some('E') => proteins_with_ec.insert(protein.uniprot_id.clone()),
+                    Some('G') => proteins_with_go.insert(protein.uniprot_id.clone()),
+                    Some('I') => proteins_with_ipr.insert(protein.uniprot_id.clone()),
+                    _ => false
                 };
+                data.entry(annotation.to_string()).and_modify(|c| *c += 1).or_insert(1);
             }
         }
 
-        counts.insert("all".to_string(), counts_array.iter().sum());
-        counts.insert("EC".to_string(), counts_array[0]);
-        counts.insert("GO".to_string(), counts_array[1]);
-        counts.insert("IPR".to_string(), counts_array[2]);
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        counts.insert("all".to_string(), proteins.len());
+        counts.insert("EC".to_string(), proteins_with_ec.len());
+        counts.insert("GO".to_string(), proteins_with_go.len());
+        counts.insert("IPR".to_string(), proteins_with_ipr.len());
 
         FunctionalAggregation { counts, data }
     }

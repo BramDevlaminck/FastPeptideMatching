@@ -32,19 +32,19 @@ impl FunctionAggregator {
         let mut counts: HashMap<String, u32> = HashMap::new();
         let mut data: HashMap<String, u32> = HashMap::new();
 
+        let mut update = |i: usize, fa: &str| {
+            counts_array[i] += 1;
+            data.entry(fa.to_string()).and_modify(|e| *e += 1).or_insert(1);
+        };
+
         for fa in proteins.iter() {
             for annotation in fa.split(';') {
-                let annotation = annotation.to_string();
-
-                // Update the counts
                 match annotation.chars().next() {
-                    Some('E') => counts_array[0] += 1,
-                    Some('G') => counts_array[1] += 1,
-                    Some('I') => counts_array[2] += 1,
+                    Some('E') => update(0, annotation),
+                    Some('G') => update(1, annotation),
+                    Some('I') => update(2, annotation),
                     _ => ()
                 };
-
-                data.entry(annotation).and_modify(|e| *e += 1).or_insert(1);
             }
         }
 

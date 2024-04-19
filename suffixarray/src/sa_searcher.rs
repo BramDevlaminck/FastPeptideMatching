@@ -6,8 +6,8 @@ use sa_mappings::proteins::{Protein, Proteins};
 use sa_mappings::taxonomy::TaxonAggregator;
 use umgap::taxon::TaxonId;
 
-use crate::searcher::BoundSearch::{Maximum, Minimum};
-use crate::searcher::SearchMatchResult::{Found, NotFound, OutOfTime};
+use crate::sa_searcher::BoundSearch::{Maximum, Minimum};
+use crate::sa_searcher::SearchMatchResult::{Found, NotFound, OutOfTime};
 use crate::suffix_to_protein_index::SuffixToProteinIndex;
 use crate::Nullable;
 
@@ -451,10 +451,13 @@ impl Searcher {
         let taxon_ids: Vec<TaxonId> = proteins.iter().map(|prot| prot.taxon_id).collect();
         match taxon_ids.is_empty() {
             true => None,
-            false => Some(
+            false => {
                 self.taxon_id_calculator
-                    .snap_taxon(self.taxon_id_calculator.aggregate(taxon_ids, clean_taxa)),
-            ),
+                    .aggregate(taxon_ids, clean_taxa)
+                    .map(|id| self.taxon_id_calculator
+                        .snap_taxon(id)
+                    )
+            },
         }
     }
 

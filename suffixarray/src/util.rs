@@ -1,6 +1,6 @@
 use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
 
-use crate::searcher::Searcher;
+use crate::sa_searcher::Searcher;
 
 /// Returns the current UNIX time in milliseconds
 #[allow(unused)]

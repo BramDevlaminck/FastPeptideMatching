@@ -1,17 +1,19 @@
 use std::error::Error;
 use std::sync::Arc;
 
+use axum::{http::StatusCode, Json, Router};
 use axum::extract::{DefaultBodyLimit, State};
 use axum::routing::{get, post};
-use axum::{http::StatusCode, Json, Router};
 use clap::Parser;
-use rayon::prelude::*;
-use sa_mappings::functionality::{FunctionAggregator, FunctionalAggregation};
-use sa_mappings::proteins::Proteins;
-use sa_mappings::taxonomy::{AggregationMethod, TaxonAggregator};
 use serde::{Deserialize, Serialize};
 
-use suffixarray::searcher::{SearchAllSuffixesResult, Searcher};
+use sa_mappings::functionality::FunctionAggregator;
+use sa_mappings::proteins::Proteins;
+use sa_mappings::taxonomy::{AggregationMethod, TaxonAggregator};
+use suffixarray::peptide_search::{
+    OutputData, search_all_peptides,
+};
+use suffixarray::sa_searcher::Searcher;
 use suffixarray::suffix_to_protein_index::SparseSuffixToProtein;
 use suffixarray_builder::binary::load_binary;
 
@@ -32,30 +34,21 @@ fn default_cutoff() -> usize {
     10000
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[allow(non_snake_case)]
 struct InputData {
     peptides: Vec<String>,
     #[serde(default = "default_cutoff")] // default value is 10000
     cutoff: usize,
-    #[serde(default = "bool::default")] // default value is false // TODO: maybe default should be true?
+    #[serde(default = "bool::default")]
+    // default value is false // TODO: maybe default should be true?
     equalize_I_and_L: bool,
-    clean_taxa: bool // TODO: should we set a default value?
-}
-
-#[derive(Debug, Serialize)]
-struct OutputData {
-    result: Vec<SearchResult>,
-}
-
-#[derive(Debug, Serialize)]
-struct SearchResult {
-    sequence: String,
-    lca: Option<usize>,
-    taxa: Vec<usize>,
-    uniprot_accessions: Vec<String>,
-    fa: Option<FunctionalAggregation>,
-    cutoff_used: bool,
+    #[serde(default = "default_true")] // default value is true
+    clean_taxa: bool,
 }
 
 // basic handler that responds with a static string
@@ -63,101 +56,20 @@ async fn root() -> &'static str {
     "Server is online"
 }
 
-pub struct PeptideSearchResult {
-    lca: Option<usize>,
-    cutoff_used: bool,
-    uniprot_accession_numbers: Vec<String>,
-    taxa: Vec<usize>,
-    fa: Option<FunctionalAggregation>,
-}
-
-/// Executes the search of 1 peptide
-pub fn search_peptide(
-    searcher: &Searcher,
-    peptide: &str,
-    cutoff: usize,
-    equalize_i_and_l: bool,
-    clean_taxa: bool,
-) -> Option<PeptideSearchResult> {
-    let peptide = peptide.to_uppercase();
-
-    // words that are shorter than the sample rate are not searchable
-    if peptide.len() < searcher.sample_rate as usize {
-        return None;
-    }
-
-    let suffix_search =
-        searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
-    let mut cutoff_used = false;
-    let suffixes = match suffix_search {
-        SearchAllSuffixesResult::MaxMatches(matched_suffixes) => {
-            cutoff_used = true;
-            matched_suffixes
-        }
-        SearchAllSuffixesResult::SearchResult(matched_suffixes) => {
-            matched_suffixes
-        }
-        SearchAllSuffixesResult::NoMatches => {
-            return None;
-        },
-    };
-
-    let proteins = searcher.retrieve_proteins(&suffixes);
-    let (uniprot_accession_numbers, taxa) = Searcher::get_uniprot_and_taxa_ids(&proteins);
-    // calculate the lca
-    let lca = if cutoff_used {
-        Some(1)
-    } else {
-        searcher.retrieve_lca(&proteins, clean_taxa)
-    };
-    let fa = searcher.retrieve_function(&proteins);
-    // output the result
-    Some(PeptideSearchResult {
-        lca,
-        cutoff_used,
-        uniprot_accession_numbers,
-        taxa,
-        fa
-    })
-}
-
 /// Search all the peptides in the given data json using the searcher.
 async fn search(
     State(searcher): State<Arc<Searcher>>,
     data: Json<InputData>,
 ) -> Result<Json<OutputData>, StatusCode> {
-    let res: Vec<SearchResult> = data
-        .peptides
-        .par_iter()
-        // calculate the results
-        .map(|peptide| search_peptide(&searcher, peptide, data.cutoff, data.equalize_I_and_L, data.clean_taxa))
-        .enumerate()
-        // remove the peptides that did not match any proteins
-        .filter(|(_, search_result)| search_result.is_some())
-        // transform search results into output
-        .map(|(index, search_results)| {
-            let PeptideSearchResult {
-                lca,
-                cutoff_used,
-                uniprot_accession_numbers,
-                taxa,
-                fa,
-            } = search_results.unwrap();
-            SearchResult {
-                sequence: data.peptides[index].clone(),
-                lca,
-                taxa,
-                uniprot_accessions: uniprot_accession_numbers,
-                fa,
-                cutoff_used,
-            }
-        })
-        .collect();
+    let search_result = search_all_peptides(
+        &searcher,
+        &data.peptides,
+        data.cutoff,
+        data.equalize_I_and_L,
+        data.clean_taxa,
+    );
 
-    // Create output JSON
-    let output_data = OutputData { result: res };
-
-    Ok(Json(output_data))
+    Ok(Json(search_result))
 }
 
 #[tokio::main]
@@ -180,7 +92,8 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
     let (sample_rate, sa) = load_binary(&index_file)?;
 
     eprintln!("Loading taxon file...");
-    let taxon_id_calculator = TaxonAggregator::try_from_taxonomy_file(&taxonomy, AggregationMethod::LcaStar)?;
+    let taxon_id_calculator =
+        TaxonAggregator::try_from_taxonomy_file(&taxonomy, AggregationMethod::LcaStar)?;
 
     let function_aggregator = FunctionAggregator {};
 
@@ -195,7 +108,7 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
         suffix_index_to_protein,
         proteins,
         taxon_id_calculator,
-        function_aggregator
+        function_aggregator,
     ));
 
     // build our application with a route

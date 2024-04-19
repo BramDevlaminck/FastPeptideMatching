@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 umgap = "1.1.0"
+bytelines = "2.5.0"
+sa-mappings = { path = "../sa-mappings" }

@@ -7,9 +7,12 @@ use serde::Serialize;
 
 use crate::proteins::Protein;
 
+/// A struct that represents the functional annotations once aggregated
 #[derive(Debug, Serialize)]
 pub struct FunctionalAggregation {
+    /// A HashMap representing how many GO, EC and IPR terms were found
     pub counts: HashMap<String, usize>,
+    /// A HashMap representing how often a certain functional annotation was found
     pub data: HashMap<String, u32>,
 }
 

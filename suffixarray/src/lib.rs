@@ -2,7 +2,7 @@ use std::error::Error;
 use std::num::NonZeroUsize;
 
 use clap::{arg, Parser, ValueEnum};
-use rayon::prelude::*;
+
 use sa_mappings::functionality::FunctionAggregator;
 use sa_mappings::proteins::Proteins;
 use sa_mappings::taxonomy::{AggregationMethod, TaxonAggregator};
@@ -10,13 +10,15 @@ use suffixarray_builder::{build_sa, SAConstructionAlgorithm};
 use suffixarray_builder::binary::{load_binary, write_binary};
 use tsv_utils::read_lines;
 
-use crate::searcher::{SearchAllSuffixesResult, Searcher};
+use crate::peptide_search::search_all_peptides;
+use crate::sa_searcher::Searcher;
 use crate::suffix_to_protein_index::{
     DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
 };
 use crate::util::get_time_ms;
 
-pub mod searcher;
+pub mod peptide_search;
+pub mod sa_searcher;
 pub mod suffix_to_protein_index;
 pub mod util;
 
@@ -27,7 +29,7 @@ pub enum SearchMode {
     MinMaxBound,
     AllOccurrences,
     TaxonId,
-    Analyses
+    Analyses,
 }
 
 #[derive(Parser, Debug)]
@@ -65,13 +67,14 @@ pub struct Arguments {
     threads: Option<NonZeroUsize>,
     #[arg(long)]
     equalize_i_and_l: bool,
-    #[arg(long, default_value_t = true)]
-    clean_taxa: bool
+    #[arg(long)]
+    clean_taxa: bool,
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
-    let taxon_id_calculator = TaxonAggregator::try_from_taxonomy_file(&args.taxonomy, AggregationMethod::LcaStar)?;
-    
+    let taxon_id_calculator =
+        TaxonAggregator::try_from_taxonomy_file(&args.taxonomy, AggregationMethod::LcaStar)?;
+
     let sa = match &args.load_index {
         // load SA from file
         Some(index_file_name) => {
@@ -83,11 +86,16 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         }
         // build the SA
         None => {
-            let protein_sequences = Proteins::try_from_database_file(&args.database_file, &taxon_id_calculator)?;
-            build_sa(&mut protein_sequences.input_string.clone(), &args.construction_algorithm, args.sample_rate)?
+            let protein_sequences =
+                Proteins::try_from_database_file(&args.database_file, &taxon_id_calculator)?;
+            build_sa(
+                &mut protein_sequences.input_string.clone(),
+                &args.construction_algorithm,
+                args.sample_rate,
+            )?
         }
     };
-    
+
     let proteins = Proteins::try_from_database_file(&args.database_file, &taxon_id_calculator)?;
 
     if let Some(output) = &args.output {
@@ -115,17 +123,15 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     let searcher = Searcher::new(
         sa,
         args.sample_rate,
-        suffix_index_to_protein, 
+        suffix_index_to_protein,
         proteins,
         taxon_id_calculator,
-        functional_aggregator
+        functional_aggregator,
     );
 
     execute_search(&searcher, &args)?;
     Ok(())
 }
-
-
 
 /// Perform the search as set with the commandline arguments
 fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn Error>> {
@@ -146,16 +152,14 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
             .build_global()?;
     }
 
-    all_peptides
-        .par_iter()
-        // calculate the results
-        .map(|peptide| search_peptide(searcher, peptide, cutoff, args.equalize_i_and_l, args.clean_taxa))
-        // output the results, collect is needed to store order so the output is in the right sequential order
-        .collect::<Vec<String>>()// TODO: this collect that makes the output again sequential is possibly unneeded since we also output the corresponding peptide (but make sure this still makes the right peptide;taxon-id mapping)
-        .iter()
-        .enumerate()
-        .for_each(|(index, res)| println!("{};{}", all_peptides[index], res));
-
+    let search_result = search_all_peptides(
+        searcher,
+        &all_peptides,
+        cutoff,
+        args.equalize_i_and_l,
+        args.clean_taxa,
+    );
+    println!("{}", serde_json::to_string(&search_result)?);
     let end_time = get_time_ms()?;
 
     // output to other channel to prevent integrating it into the actual output
@@ -165,43 +169,6 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
     );
 
     Ok(())
-}
-
-/// Executes the kind of search indicated by the commandline arguments
-pub fn search_peptide(
-    searcher: &Searcher,
-    word: &str,
-    cutoff: usize,
-    equalize_i_and_l: bool,
-    clean_taxa: bool
-) -> String {
-    let peptide = word.strip_suffix('\n').unwrap_or(word).to_uppercase();
-    // words that are shorter than the sample rate are not searchable
-    if peptide.len() < searcher.sample_rate as usize {
-        println!("/ (word too short short for SA sample size)");
-        return String::new();
-    }
-    
-    let suffix_search_result = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
-    let mut proteins = vec![];
-    let id = match suffix_search_result {
-        SearchAllSuffixesResult::MaxMatches(suffixes) => {
-            proteins = searcher.retrieve_proteins(&suffixes);
-            Some(1)
-        },
-        SearchAllSuffixesResult::SearchResult(suffixes) => {
-            proteins = searcher.retrieve_proteins(&suffixes);
-            searcher.retrieve_lca(&proteins, clean_taxa)
-        }
-        _ => None
-    };
-
-    if let Some(id) = id {
-        let annotations = Searcher::get_uniprot_and_taxa_ids(&proteins);
-        format!("{id};{:?}", annotations)
-    } else {
-        "/".to_string()
-    }
 }
 
 /// Custom trait implemented by types that have a value that represents NULL

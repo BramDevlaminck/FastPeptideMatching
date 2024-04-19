@@ -130,18 +130,24 @@ impl TaxonAggregator {
     ///
     /// # Returns
     ///
-    /// Returns the aggregated taxon ID, or panics if aggregation fails.
-    pub fn aggregate(&self, taxa: Vec<TaxonId>, clean_taxa: bool) -> TaxonId {
+    /// Returns the aggregated taxon ID wrapped in Some if aggregation succeeds,
+    /// Returns None if the list of taxa to aggregate is emtpy,
+    /// Panics if aggregation fails.
+    pub fn aggregate(&self, taxa: Vec<TaxonId>, clean_taxa: bool) -> Option<TaxonId> {
         let partially_aggregated_taxa: Vec<(TaxonId, f32)> = if clean_taxa {
             taxa.into_iter().filter(|&taxon| self.taxon_valid(taxon)).map(|t| (t, 1.0_f32)).collect()
         } else {
             taxa.into_iter().map(|t| (t, 1.0_f32)).collect()
         };
         
+        if partially_aggregated_taxa.is_empty() {
+            return None;
+        }
+
         let count = count(partially_aggregated_taxa.into_iter());
-        self.aggregator
+        Some(self.aggregator
             .aggregate(&count)
-            .unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count))
+            .unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count)))
     }
 }
 
@@ -254,9 +260,9 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(taxon_aggregator.aggregate(vec![7, 9], true), 6);
-        assert_eq!(taxon_aggregator.aggregate(vec![11, 14], true), 10);
-        assert_eq!(taxon_aggregator.aggregate(vec![17, 19], true), 17);
+        assert_eq!(taxon_aggregator.aggregate(vec![7, 9], true), Some(6));
+        assert_eq!(taxon_aggregator.aggregate(vec![11, 14], true), Some(10));
+        assert_eq!(taxon_aggregator.aggregate(vec![17, 19], true), Some(17));
     }
 
     #[test]
@@ -272,11 +278,11 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(taxon_aggregator.aggregate(vec![7, 9], true), 6);
-        assert_eq!(taxon_aggregator.aggregate(vec![11, 14], true), 10);
-        assert_eq!(taxon_aggregator.aggregate(vec![17, 19], true), 19);
+        assert_eq!(taxon_aggregator.aggregate(vec![7, 9], true), Some(6));
+        assert_eq!(taxon_aggregator.aggregate(vec![11, 14], true), Some(10));
+        assert_eq!(taxon_aggregator.aggregate(vec![17, 19], true), Some(19));
     }
-    
+
     #[test]
     fn test_valid_taxa_only() {
         // Create a temporary directory for this test
@@ -288,8 +294,10 @@ mod tests {
             taxonomy_file.to_str().unwrap(),
             AggregationMethod::LcaStar
         ).unwrap();
-        
-        assert_eq!(taxon_aggregator.aggregate(vec![21, 2], false), 1);
-        assert_eq!(taxon_aggregator.aggregate(vec![21, 2], true), 2);
+
+        assert_eq!(taxon_aggregator.aggregate(vec![21, 2], false), Some(1));
+        assert_eq!(taxon_aggregator.aggregate(vec![21, 2], true), Some(2));
+        assert_eq!(taxon_aggregator.aggregate(vec![21], true), None);
+
     }
 }

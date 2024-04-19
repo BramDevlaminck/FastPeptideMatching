@@ -91,6 +91,23 @@ impl TaxonAggregator {
         self.taxon_list.get(taxon).is_some()
     }
 
+    /// Checks if a taxon is valid to be used during taxonomic aggregation
+    ///
+    /// # Arguments
+    ///
+    /// * `taxon` - The taxon ID to check.
+    ///
+    /// # Returns
+    ///
+    /// Returns a boolean value indicating whether the taxon exists and is valid
+    pub fn taxon_valid(&self, taxon: TaxonId) -> bool {
+        let optional_taxon = self.taxon_list.get(taxon);
+        match optional_taxon {
+            None => false,
+            Some(taxon) => taxon.valid
+        }
+    }
+
     /// Snaps a taxon to its closest ancestor in the taxonomic tree.
     ///
     /// # Arguments
@@ -109,12 +126,19 @@ impl TaxonAggregator {
     /// # Arguments
     ///
     /// * `taxa` - A vector of taxon IDs to aggregate.
+    /// * `clean_taxa` - If true, only the taxa which are stored as "valid" are used during aggregation
     ///
     /// # Returns
     ///
     /// Returns the aggregated taxon ID, or panics if aggregation fails.
-    pub fn aggregate(&self, taxa: Vec<TaxonId>) -> TaxonId {
-        let count = count(taxa.into_iter().map(|t| (t, 1.0)));
+    pub fn aggregate(&self, taxa: Vec<TaxonId>, clean_taxa: bool) -> TaxonId {
+        let partially_aggregated_taxa: Vec<(TaxonId, f32)> = if clean_taxa {
+            taxa.into_iter().filter(|&taxon| self.taxon_valid(taxon)).map(|t| (t, 1.0_f32)).collect()
+        } else {
+            taxa.into_iter().map(|t| (t, 1.0_f32)).collect()
+        };
+        
+        let count = count(partially_aggregated_taxa.into_iter());
         self.aggregator
             .aggregate(&count)
             .unwrap_or_else(|_| panic!("Could not aggregate following taxon ids: {:?}", &count))
@@ -151,6 +175,7 @@ mod tests {
         writeln!(file, "18\tPelobacter\tgenus\t17\t\x01").unwrap();
         writeln!(file, "19\tSyntrophotalea carbinolica\tspecies\t17\t\x01").unwrap();
         writeln!(file, "20\tPhenylobacterium\tgenus\t19\t\x01").unwrap();
+        writeln!(file, "21\tInvalid\tspecies\t19\t\x00").unwrap();
 
         taxonomy_file
     }
@@ -229,9 +254,9 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(taxon_aggregator.aggregate(vec![7, 9]), 6);
-        assert_eq!(taxon_aggregator.aggregate(vec![11, 14]), 10);
-        assert_eq!(taxon_aggregator.aggregate(vec![17, 19]), 17);
+        assert_eq!(taxon_aggregator.aggregate(vec![7, 9], true), 6);
+        assert_eq!(taxon_aggregator.aggregate(vec![11, 14], true), 10);
+        assert_eq!(taxon_aggregator.aggregate(vec![17, 19], true), 17);
     }
 
     #[test]
@@ -247,8 +272,24 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(taxon_aggregator.aggregate(vec![7, 9]), 6);
-        assert_eq!(taxon_aggregator.aggregate(vec![11, 14]), 10);
-        assert_eq!(taxon_aggregator.aggregate(vec![17, 19]), 19);
+        assert_eq!(taxon_aggregator.aggregate(vec![7, 9], true), 6);
+        assert_eq!(taxon_aggregator.aggregate(vec![11, 14], true), 10);
+        assert_eq!(taxon_aggregator.aggregate(vec![17, 19], true), 19);
+    }
+    
+    #[test]
+    fn test_valid_taxa_only() {
+        // Create a temporary directory for this test
+        let tmp_dir = TempDir::new("test_aggregate").unwrap();
+
+        let taxonomy_file = create_taxonomy_file(&tmp_dir);
+
+        let taxon_aggregator = TaxonAggregator::try_from_taxonomy_file(
+            taxonomy_file.to_str().unwrap(),
+            AggregationMethod::LcaStar
+        ).unwrap();
+        
+        assert_eq!(taxon_aggregator.aggregate(vec![21, 2], false), 1);
+        assert_eq!(taxon_aggregator.aggregate(vec![21, 2], true), 2);
     }
 }

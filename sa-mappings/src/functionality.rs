@@ -2,9 +2,8 @@
 //! functional annotations of proteins.
 
 use std::collections::{HashMap, HashSet};
-
 use serde::Serialize;
-use serde_json::json;
+
 
 use crate::proteins::Protein;
 

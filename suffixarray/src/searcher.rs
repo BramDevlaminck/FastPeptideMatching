@@ -447,13 +447,13 @@ impl Searcher {
     }
 
     #[inline]
-    pub fn retrieve_lca(&self, proteins: &[&Protein]) -> Option<TaxonId> {
+    pub fn retrieve_lca(&self, proteins: &[&Protein], clean_taxa: bool) -> Option<TaxonId> {
         let taxon_ids: Vec<TaxonId> = proteins.iter().map(|prot| prot.taxon_id).collect();
         match taxon_ids.is_empty() {
             true => None,
             false => Some(
                 self.taxon_id_calculator
-                    .snap_taxon(self.taxon_id_calculator.aggregate(taxon_ids)),
+                    .snap_taxon(self.taxon_id_calculator.aggregate(taxon_ids, clean_taxa)),
             ),
         }
     }
@@ -475,8 +475,5 @@ impl Searcher {
 
         (uniprot_ids, taxa)
     }
-
-    pub fn search_lca(&self, search_string: &[u8], equalize_i_and_l: bool) -> Option<TaxonId> {
-        self.retrieve_lca(&self.search_protein(search_string, equalize_i_and_l))
-    }
+    
 }

@@ -38,8 +38,9 @@ struct InputData {
     peptides: Vec<String>,
     #[serde(default = "default_cutoff")] // default value is 10000
     cutoff: usize,
-    #[serde(default = "bool::default")] // default value is false % TODO: maybe default should be true?
+    #[serde(default = "bool::default")] // default value is false // TODO: maybe default should be true?
     equalize_I_and_L: bool,
+    clean_taxa: bool // TODO: should we set a default value?
 }
 
 #[derive(Debug, Serialize)]
@@ -76,6 +77,7 @@ pub fn search_peptide(
     peptide: &str,
     cutoff: usize,
     equalize_i_and_l: bool,
+    clean_taxa: bool,
 ) -> Option<PeptideSearchResult> {
     let peptide = peptide.to_uppercase();
 
@@ -106,7 +108,7 @@ pub fn search_peptide(
     let lca = if cutoff_used {
         Some(1)
     } else {
-        searcher.retrieve_lca(&proteins)
+        searcher.retrieve_lca(&proteins, clean_taxa)
     };
     let fa = searcher.retrieve_function(&proteins);
     // output the result
@@ -128,7 +130,7 @@ async fn search(
         .peptides
         .par_iter()
         // calculate the results
-        .map(|peptide| search_peptide(&searcher, peptide, data.cutoff, data.equalize_I_and_L))
+        .map(|peptide| search_peptide(&searcher, peptide, data.cutoff, data.equalize_I_and_L, data.clean_taxa))
         .enumerate()
         // remove the peptides that did not match any proteins
         .filter(|(_, search_result)| search_result.is_some())

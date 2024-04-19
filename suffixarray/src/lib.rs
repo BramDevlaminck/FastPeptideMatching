@@ -37,13 +37,6 @@ pub struct Arguments {
     database_file: String,
     #[arg(short, long)]
     search_file: Option<String>,
-    /// `match` will only look if there is match.
-    /// `all-occurrences` will search for the match and look for all the different matches in the subtree.
-    /// `min-max-bound` will search for the match and retrieve the minimum and maximum index in the SA that contains a suffix that matches.
-    /// `Taxon-id` will search for the matching taxon id using lca*
-    /// `Analyses` will return all the Unipept analyses results
-    #[arg(short, long, value_enum)]
-    mode: Option<SearchMode>,
     #[arg(short, long)]
     /// The taxonomy to be used as a tsv file. This is a preprocessed version of the NCBI taxonomy.
     taxonomy: String,
@@ -71,7 +64,9 @@ pub struct Arguments {
     #[arg(long)]
     threads: Option<NonZeroUsize>,
     #[arg(long)]
-    equalize_i_and_l: bool
+    equalize_i_and_l: bool,
+    #[arg(long, default_value_t = true)]
+    clean_taxa: bool
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -102,9 +97,6 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {
         return Ok(());
-    } else if args.mode.is_none() {
-        eprintln!("search mode expected!");
-        std::process::exit(1);
     }
 
     // build the right mapping index, use box to be able to store both types in this variable
@@ -137,7 +129,6 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
 
 /// Perform the search as set with the commandline arguments
 fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn Error>> {
-    let mode = args.mode.as_ref().ok_or("No search mode provided")?;
     let cutoff = args.cutoff;
     let search_file = args
         .search_file
@@ -158,7 +149,7 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
     all_peptides
         .par_iter()
         // calculate the results
-        .map(|peptide| search_peptide(searcher, peptide, mode, cutoff, args.equalize_i_and_l))
+        .map(|peptide| search_peptide(searcher, peptide, cutoff, args.equalize_i_and_l, args.clean_taxa))
         // output the results, collect is needed to store order so the output is in the right sequential order
         .collect::<Vec<String>>()// TODO: this collect that makes the output again sequential is possibly unneeded since we also output the corresponding peptide (but make sure this still makes the right peptide;taxon-id mapping)
         .iter()
@@ -180,9 +171,9 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
 pub fn search_peptide(
     searcher: &Searcher,
     word: &str,
-    search_mode: &SearchMode,
     cutoff: usize,
-    equalize_i_and_l: bool
+    equalize_i_and_l: bool,
+    clean_taxa: bool
 ) -> String {
     let peptide = word.strip_suffix('\n').unwrap_or(word).to_uppercase();
     // words that are shorter than the sample rate are not searchable
@@ -191,57 +182,25 @@ pub fn search_peptide(
         return String::new();
     }
     
-    match *search_mode {
-        SearchMode::Match => format!("{}", searcher.search_if_match(peptide.as_bytes(), equalize_i_and_l)),
-        SearchMode::MinMaxBound => {
-            let min_max_bounds = searcher.search_bounds(peptide.as_bytes());
-            format!("{:?}", min_max_bounds)
+    let suffix_search_result = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
+    let mut proteins = vec![];
+    let id = match suffix_search_result {
+        SearchAllSuffixesResult::MaxMatches(suffixes) => {
+            proteins = searcher.retrieve_proteins(&suffixes);
+            Some(1)
+        },
+        SearchAllSuffixesResult::SearchResult(suffixes) => {
+            proteins = searcher.retrieve_proteins(&suffixes);
+            searcher.retrieve_lca(&proteins, clean_taxa)
         }
-        SearchMode::AllOccurrences => {
-            let results = searcher.search_protein(peptide.as_bytes(), equalize_i_and_l);
-            let number_of_proteins = results.len();
-            let peptide_length = peptide.len();
-            format!("{peptide_length};{number_of_proteins};") // TODO: return all the matching protein strings perhaps?
-        }
-        SearchMode::TaxonId => {
-            let suffixes = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
-            let id = match suffixes {
-                SearchAllSuffixesResult::MaxMatches(_) => Some(1),
-                SearchAllSuffixesResult::SearchResult(suffixes) => {
-                    let proteins = searcher.retrieve_proteins(&suffixes);
-                    searcher.retrieve_lca(&proteins)
-                }
-                _ => None
-            };
-    
-            if let Some(id) = id {
-                format!("{id}")
-            } else {
-                "/".to_string()
-            }
-        }
-        SearchMode::Analyses => {
-            let suffix_search_result = searcher.search_matching_suffixes(peptide.as_bytes(), cutoff, equalize_i_and_l);
-            let mut proteins = vec![];
-            let id = match suffix_search_result {
-                SearchAllSuffixesResult::MaxMatches(suffixes) => {
-                    proteins = searcher.retrieve_proteins(&suffixes);
-                    Some(1)
-                },
-                SearchAllSuffixesResult::SearchResult(suffixes) => {
-                    proteins = searcher.retrieve_proteins(&suffixes);
-                    searcher.retrieve_lca(&proteins)
-                }
-                _ => None
-            };
-    
-            if let Some(id) = id {
-                let annotations = Searcher::get_uniprot_and_taxa_ids(&proteins);
-                format!("{id};{:?}", annotations)
-            } else {
-                "/".to_string()
-            }
-        }
+        _ => None
+    };
+
+    if let Some(id) = id {
+        let annotations = Searcher::get_uniprot_and_taxa_ids(&proteins);
+        format!("{id};{:?}", annotations)
+    } else {
+        "/".to_string()
     }
 }
 

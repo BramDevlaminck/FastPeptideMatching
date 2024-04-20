@@ -93,12 +93,12 @@ pub fn search_peptide(
     };
 
     let mut proteins = searcher.retrieve_proteins(&suffixes);
-    
-    let (uniprot_accession_numbers, taxa) = Searcher::get_uniprot_and_taxa_ids(&proteins);
 
     if clean_taxa {
         proteins.retain(|protein| searcher.taxon_valid(protein))
     }
+    
+    let (uniprot_accession_numbers, taxa) = Searcher::get_uniprot_and_taxa_ids(&proteins);
     
     // calculate the lca
     let lca = if cutoff_used {

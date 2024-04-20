@@ -447,20 +447,21 @@ impl Searcher {
     }
 
     #[inline]
-    pub fn retrieve_lca(&self, proteins: &[&Protein], clean_taxa: bool) -> Option<TaxonId> {
+    pub fn retrieve_lca(&self, proteins: &[&Protein]) -> Option<TaxonId> {
         let taxon_ids: Vec<TaxonId> = proteins.iter().map(|prot| prot.taxon_id).collect();
-        match taxon_ids.is_empty() {
-            true => None,
-            false => {
-                self.taxon_id_calculator
-                    .aggregate(taxon_ids, clean_taxa)
-                    .map(|id| self.taxon_id_calculator
-                        .snap_taxon(id)
-                    )
-            },
-        }
+        
+        self.taxon_id_calculator
+            .aggregate(taxon_ids)
+            .map(|id| self.taxon_id_calculator
+                .snap_taxon(id)
+            )
     }
-
+    
+    /// Return whether the taxon id of the protein has its valid bit set in the taxonomy
+    pub fn taxon_valid(&self, protein: &Protein) -> bool {
+        self.taxon_id_calculator.taxon_valid(protein.taxon_id)
+    }
+    
     pub fn retrieve_function(&self, proteins: &[&Protein]) -> Option<FunctionalAggregation> {
         let res = self.function_aggregator.aggregate(proteins.to_vec());
         Some(res)

@@ -15,3 +15,4 @@ rayon = "1.8.1"
 tsv-utils = { path = "../tsv-utils"}
 suffixarray_builder = { path = "../suffixarray_builder" }
 sa-mappings = { path = "../sa-mappings" }
+get-size = { version = "^0.1", features = ["derive"] }

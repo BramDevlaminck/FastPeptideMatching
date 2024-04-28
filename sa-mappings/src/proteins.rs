@@ -10,6 +10,7 @@ use std::{
 };
 
 use bytelines::ByteLines;
+use get_size::GetSize;
 use fa_compression::algorithm1::decode;
 use umgap::taxon::TaxonId;
 
@@ -23,6 +24,7 @@ pub static SEPARATION_CHARACTER: u8 = b'-';
 pub static TERMINATION_CHARACTER: u8 = b'$';
 
 /// A struct that represents a protein and its linked information
+#[derive(GetSize)]
 pub struct Protein {
     /// The id of the protein
     pub uniprot_id: String,
@@ -38,12 +40,13 @@ pub struct Protein {
 }
 
 /// A struct that represents a collection of proteins
+#[derive(GetSize)]
 pub struct Proteins {
     /// The input string containing all proteins
     pub input_string: Vec<u8>,
 
     /// The proteins in the input string
-    proteins: Vec<Protein>
+    pub proteins: Vec<Protein>
 }
 
 impl Protein {

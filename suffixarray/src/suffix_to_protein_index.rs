@@ -1,4 +1,5 @@
 use clap::ValueEnum;
+use get_size::GetSize;
 use tsv_utils::{END_CHARACTER, SEPARATION_CHARACTER};
 use crate::Nullable;
 
@@ -15,14 +16,14 @@ pub trait SuffixToProteinIndex: Send + Sync {
 }
 
 /// Uses O(n) memory with n the size of the input text, but retrieval of the protein is in O(1)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, GetSize)]
 pub struct DenseSuffixToProtein {
     // UniProt does not have more that u32::MAX proteins, so a larger type is not needed
     mapping: Vec<u32>,
 }
 
 /// Uses O(m) memory with m the number of proteins, but retrieval of the protein is O(log m)
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, GetSize)]
 pub struct SparseSuffixToProtein {
     mapping: Vec<i64>,
 }

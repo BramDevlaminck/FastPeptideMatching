@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::sync::Arc;
+use get_size::GetSize;
 
 use axum::{http::StatusCode, Json, Router};
 use axum::extract::{DefaultBodyLimit, State};
@@ -99,7 +100,17 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
 
     eprintln!("Loading proteins...");
     let proteins = Proteins::try_from_database_file(&database_file, &taxon_id_calculator)?;
+    println!("size of text: {}", proteins.input_string.get_size());
+    println!("size of all proteins: {}", proteins.proteins.get_size());
+    println!("size of all FA: {}", proteins.proteins.iter().map(|p| p.functional_annotations.get_size()).sum::<usize>());
+    println!("size of all taxa: {}", proteins.proteins.iter().map(|p| p.taxon_id.get_size()).sum::<usize>());
+    println!("size of indices to sa: {}", proteins.proteins.iter().map(|p| p.sequence.get_size()).sum::<usize>());
+    println!("size of all uniprot ids: {}", proteins.proteins.iter().map(|p| p.uniprot_id.get_size()).sum::<usize>());
+    
+    
     let suffix_index_to_protein = Box::new(SparseSuffixToProtein::new(&proteins.input_string));
+    println!("size of suffix to protein mapping: {}", (*suffix_index_to_protein).get_size());
+
 
     eprintln!("Creating searcher...");
     let searcher = Arc::new(Searcher::new(

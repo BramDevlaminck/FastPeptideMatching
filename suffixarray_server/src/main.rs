@@ -99,7 +99,11 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
     let function_aggregator = FunctionAggregator {};
 
     eprintln!("Loading proteins...");
-    let proteins = Proteins::try_from_database_file(&database_file, &taxon_id_calculator)?;
+    let mut proteins = Proteins::try_from_database_file(&database_file, &taxon_id_calculator)?;
+    println!("sa size: {}", sa.get_size());
+    println!("size of text: {}", proteins.input_string.get_size());
+    println!("text length: {}", proteins.input_string.len());
+    proteins.input_string.shrink_to_fit();
     println!("size of text: {}", proteins.input_string.get_size());
     println!("size of all proteins: {}", proteins.proteins.get_size());
     println!("size of all FA: {}", proteins.proteins.iter().map(|p| p.functional_annotations.get_size()).sum::<usize>());

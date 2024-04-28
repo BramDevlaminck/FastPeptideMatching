@@ -59,6 +59,7 @@ impl DenseSuffixToProtein {
                 suffix_index_to_protein.push(current_protein_index);
             }
         }
+        suffix_index_to_protein.shrink_to_fit();
         DenseSuffixToProtein { mapping: suffix_index_to_protein }
     }
 }
@@ -72,6 +73,7 @@ impl SparseSuffixToProtein {
                 suffix_index_to_protein.push(index as i64 + 1);
             }
         }
+        suffix_index_to_protein.shrink_to_fit();
         SparseSuffixToProtein { mapping: suffix_index_to_protein }
     }
 

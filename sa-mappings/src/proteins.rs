@@ -113,6 +113,7 @@ impl Proteins {
 
         input_string.pop();
         input_string.push(TERMINATION_CHARACTER.into());
+        input_string.shrink_to_fit();
 
         Ok(Self {
             input_string: input_string.into_bytes(),

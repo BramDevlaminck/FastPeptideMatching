@@ -76,7 +76,7 @@ fn read_sa_file(mut file: &File) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
         }
         sa.extend_from_slice(&deserialize_sa(&buffer[..count]));
     }
-
+    sa.shrink_to_fit();
     Ok((sample_rate, sa))
 }
 

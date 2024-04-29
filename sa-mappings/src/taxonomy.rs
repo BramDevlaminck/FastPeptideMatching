@@ -276,22 +276,4 @@ mod tests {
         assert_eq!(taxon_aggregator.aggregate(vec![11, 14]), Some(10));
         assert_eq!(taxon_aggregator.aggregate(vec![17, 19]), Some(19));
     }
-
-    #[test]
-    fn test_valid_taxa_only() {
-        // Create a temporary directory for this test
-        let tmp_dir = TempDir::new("test_aggregate").unwrap();
-
-        let taxonomy_file = create_taxonomy_file(&tmp_dir);
-
-        let taxon_aggregator = TaxonAggregator::try_from_taxonomy_file(
-            taxonomy_file.to_str().unwrap(),
-            AggregationMethod::LcaStar
-        ).unwrap();
-
-        assert_eq!(taxon_aggregator.aggregate(vec![21, 2]), Some(1));
-        assert_eq!(taxon_aggregator.aggregate(vec![21, 2]), Some(2));
-        assert_eq!(taxon_aggregator.aggregate(vec![21]), None);
-
-    }
 }

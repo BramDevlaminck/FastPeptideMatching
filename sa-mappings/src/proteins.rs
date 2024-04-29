@@ -27,9 +27,6 @@ pub struct Protein {
     /// The id of the protein
     pub uniprot_id: String,
 
-    /// start position and length of the protein in the input string
-    pub sequence: (usize, u32),
-
     /// the taxon id of the protein
     pub taxon_id: TaxonId,
 
@@ -100,7 +97,6 @@ impl Proteins {
 
             proteins.push(Protein {
                 uniprot_id: uniprot_id.to_string(),
-                sequence: (start_index, sequence.len() as u32),
                 taxon_id,
                 functional_annotations
             });
@@ -110,28 +106,14 @@ impl Proteins {
 
         input_string.pop();
         input_string.push(TERMINATION_CHARACTER.into());
-
+        input_string.shrink_to_fit();
+        proteins.shrink_to_fit();
         Ok(Self {
             input_string: input_string.into_bytes(),
             proteins
         })
     }
-
-    /// Returns the sequence of a protein
-    ///
-    /// # Arguments
-    /// * `protein` - The protein to get the sequence from
-    ///
-    /// # Returns
-    ///
-    /// Returns a string slice containing the sequence of the protein
-    pub fn get_sequence(&self, protein: &Protein) -> &str {
-        let (start, length) = protein.sequence;
-        let end = start + length as usize;
-
-        // unwrap should never fail since the input string will always be utf8
-        std::str::from_utf8(&self.input_string[start .. end]).unwrap()
-    }
+    
 }
 
 impl Index<usize> for Proteins {
@@ -210,13 +192,11 @@ mod tests {
     fn test_new_protein() {
         let protein = Protein {
             uniprot_id:             "P12345".to_string(),
-            sequence:               (0, 3),
             taxon_id:               1,
             functional_annotations: vec![0xD1, 0x11]
         };
 
         assert_eq!(protein.uniprot_id, "P12345");
-        assert_eq!(protein.sequence, (0, 3));
         assert_eq!(protein.taxon_id, 1);
         assert_eq!(protein.functional_annotations, vec![0xD1, 0x11]);
     }
@@ -230,13 +210,11 @@ mod tests {
             proteins:     vec![
                 Protein {
                     uniprot_id:             "P12345".to_string(),
-                    sequence:               (0, 3),
                     taxon_id:               1,
                     functional_annotations: vec![0xD1, 0x11]
                 },
                 Protein {
                     uniprot_id:             "P54321".to_string(),
-                    sequence:               (4, 3),
                     taxon_id:               2,
                     functional_annotations: vec![0xD1, 0x11]
                 },
@@ -249,40 +227,11 @@ mod tests {
         );
         assert_eq!(proteins.proteins.len(), 2);
         assert_eq!(proteins.proteins[0].uniprot_id, "P12345");
-        assert_eq!(proteins.proteins[0].sequence, (0, 3));
         assert_eq!(proteins.proteins[0].taxon_id, 1);
         assert_eq!(proteins.proteins[0].functional_annotations, vec![0xD1, 0x11]);
         assert_eq!(proteins.proteins[1].uniprot_id, "P54321");
-        assert_eq!(proteins.proteins[1].sequence, (4, 3));
         assert_eq!(proteins.proteins[1].taxon_id, 2);
         assert_eq!(proteins.proteins[1].functional_annotations, vec![0xD1, 0x11]);
-    }
-
-    #[test]
-    fn test_get_sequence() {
-        // Create a temporary directory for this test
-        let tmp_dir = TempDir::new("test_get_sequences").unwrap();
-
-        let database_file = create_database_file(&tmp_dir);
-        let taxonomy_file = create_taxonomy_file(&tmp_dir);
-
-        let taxon_aggregator = TaxonAggregator::try_from_taxonomy_file(
-            taxonomy_file.to_str().unwrap(),
-            AggregationMethod::Lca
-        )
-        .unwrap();
-        let proteins =
-            Proteins::try_from_database_file(database_file.to_str().unwrap(), &taxon_aggregator)
-                .unwrap();
-
-        //assert_eq!(proteins.proteins.len(), 4);
-        assert_eq!(proteins.get_sequence(&proteins[0]), "MLPGLALLLLAAWTARALEV");
-        assert_eq!(proteins.get_sequence(&proteins[1]), "PTDGNAGLLAEPQIAMFCGRLNMHMNVQNG");
-        assert_eq!(proteins.get_sequence(&proteins[2]), "KWDSDPSGTKTCIDT");
-        assert_eq!(
-            proteins.get_sequence(&proteins[3]),
-            "KEGILQYCQEVYPELQITNVVEANQPVTIQNWCKRGRKQCKTHPH"
-        );
     }
 
     #[test]

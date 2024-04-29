@@ -108,7 +108,6 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
     println!("size of all proteins: {}", proteins.proteins.get_size());
     println!("size of all FA: {}", proteins.proteins.iter().map(|p| p.functional_annotations.get_size()).sum::<usize>());
     println!("size of all taxa: {}", proteins.proteins.iter().map(|p| p.taxon_id.get_size()).sum::<usize>());
-    println!("size of indices to sa: {}", proteins.proteins.iter().map(|p| p.sequence.get_size()).sum::<usize>());
     println!("size of all uniprot ids: {}", proteins.proteins.iter().map(|p| p.uniprot_id.get_size()).sum::<usize>());
     
     

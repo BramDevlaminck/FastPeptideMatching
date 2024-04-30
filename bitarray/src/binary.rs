@@ -19,23 +19,12 @@ impl<const B: usize> Binary for BitArray<B> {
     fn read_binary<R: BufRead>(&mut self, mut reader: R) -> Result<()> {
         self.data.clear();
 
-        let mut i = 0;
-
         let mut buffer = [0; 8 * 1024];
         let mut bytes_read = reader.read(&mut buffer)?;
         while bytes_read > 0 {
             for buffer_slice in buffer.chunks_exact(8) {
-                let number = u64::from_le_bytes(buffer_slice.try_into().unwrap());
-                eprintln!("Read number: {}", number);
                 self.data.push(u64::from_le_bytes(buffer_slice.try_into().unwrap()));
-
-                if i == 5 {
-                    eprintln!("0: {}, 1: {}, 2: {}", self.get(0), self.get(1), self.get(2));
-                    break;
-                }
-                i+=1;
             }
-            break;
             bytes_read = reader.read(&mut buffer)?;
         }
 

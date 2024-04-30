@@ -1,8 +1,9 @@
 use std::cmp::min;
 use std::error::Error;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{BufReader, Read, Write};
 
+use bitarray::binary::Binary;
 use bitarray::BitArray;
 
 const ONE_GIB: usize = 2usize.pow(30);
@@ -63,30 +64,22 @@ pub fn load_binary(name: &str) -> Result<(u8, BitArray<37>), Box<dyn Error>> {
 }
 
 fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<37>), Box<dyn Error>> {
+    let mut reader = BufReader::new(file);
+
     let mut sample_rate_buffer = [0_u8; 1];
-    file.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
+    reader.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
     let sample_rate = sample_rate_buffer[0];
 
     eprintln!("Reading the sample rate from the binary file: {}", sample_rate);
 
     let mut amount_of_entries_buffer = [0_u8; 8];
-    file.read_exact(&mut amount_of_entries_buffer).map_err(|_| "Could not read the amount of entries from the binary file")?;
+    reader.read_exact(&mut amount_of_entries_buffer).map_err(|_| "Could not read the amount of entries from the binary file")?;
     let amount_of_entries = u64::from_le_bytes(amount_of_entries_buffer);
 
     eprintln!("Reading the amount of entries from the binary file: {}", amount_of_entries);
 
     let mut sa = BitArray::<37>::with_capacity(amount_of_entries as usize);
-
-    let mut index = 0;
-    let mut buffer = [0; 8 * 4096];
-    let mut bytes_read = file.read(&mut buffer).unwrap();
-    while bytes_read > 0 {
-        for buffer_slice in buffer.chunks_exact(8) {
-            sa.set(index, u64::from_le_bytes(buffer_slice.try_into().unwrap()));
-            index += 1;
-        }
-        bytes_read = file.read(&mut buffer).unwrap();
-    }
+    sa.read_binary(&mut reader).map_err(|_| "Could not read the suffix array from the binary file")?;
 
     Ok((sample_rate, sa))
 }

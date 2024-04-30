@@ -81,7 +81,9 @@ fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<37>), Box<dyn Error>> {
     let mut sa = BitArray::<37>::with_capacity(amount_of_entries as usize);
     sa.read_binary(&mut reader).map_err(|_| "Could not read the suffix array from the binary file")?;
 
-    eprintln!("last value: {}", sa.get(29_401_012_223));
+    eprintln!("value (1023): {}", sa.get(1023));
+    eprintln!("value (1024): {}", sa.get(1024));
+    eprintln!("value (1025): {}", sa.get(1025));
 
     Ok((sample_rate, sa))
 }

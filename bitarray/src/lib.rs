@@ -19,15 +19,35 @@ impl<const B: usize> BitArray<B> {
         let start_block = index * B / 64;
         let start_block_offset = index * B % 64;
 
+        if index == 1024 {
+            eprintln!("start_block: {}, start_block_offset: {}", start_block, start_block_offset);
+        }
+
         if start_block_offset + B <= 64 {
+            if index == 1024 {
+                eprintln!("data: {0:64b}", self.data[start_block]);
+                eprintln!("shift: {}", (64 - start_block_offset - B));
+                eprintln!("shifted: {}", self.data[start_block] >> (64 - start_block_offset - B));
+                eprintln!("result: {}", self.data[start_block] >> (64 - start_block_offset - B) & self.mask);
+            }
+
             return self.data[start_block] >> (64 - start_block_offset - B) & self.mask;
         }
 
         let end_block = (index + 1) * B / 64;
         let end_block_offset = (index + 1) * B % 64;
 
+        if index == 1024 {
+            eprintln!("end_block: {}, end_block_offset: {}", end_block, end_block_offset);
+        }
+
         let a = self.data[start_block] << end_block_offset;
         let b = self.data[end_block] >> (64 - end_block_offset);
+
+        if index == 1024 {
+            eprintln!("a: {}, b: {}", a, b);
+            eprintln!("result: {}", (a | b) & self.mask);
+        }
 
         (a | b) & self.mask
     }

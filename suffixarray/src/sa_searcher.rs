@@ -102,7 +102,7 @@ impl Display for SearchMatchResult {
 }
 
 pub struct Searcher {
-    sa: BitArray<38>,
+    sa: BitArray<37>,
     pub sample_rate: u8,
     suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
     proteins: Proteins,
@@ -112,7 +112,7 @@ pub struct Searcher {
 
 impl Searcher {
     pub fn new(
-        sa: BitArray<38>,
+        sa: BitArray<37>,
         sample_rate: u8,
         suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
         proteins: Proteins,

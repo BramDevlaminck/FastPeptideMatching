@@ -55,14 +55,14 @@ pub fn write_binary(sample_rate: u8, suffix_array: &[i64], name: &str) -> Result
     Ok(())
 }
 
-pub fn load_binary(name: &str) -> Result<(u8, BitArray<38>), Box<dyn Error>> {
+pub fn load_binary(name: &str) -> Result<(u8, BitArray<37>), Box<dyn Error>> {
     // read the SA and deserialize it into a vec of i64
     let sa_file = File::open(name)?;
     let (sample_rate, sa) = read_sa_file(&sa_file)?;
     Ok((sample_rate, sa))
 }
 
-fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<38>), Box<dyn Error>> {
+fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<37>), Box<dyn Error>> {
     let mut sample_rate_buffer = [0_u8; 1];
     file.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
     let sample_rate = sample_rate_buffer[0];
@@ -75,7 +75,7 @@ fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<38>), Box<dyn Error>> {
 
     eprintln!("Reading the amount of entries from the binary file: {}", amount_of_entries);
 
-    let mut sa = BitArray::<38>::with_capacity(amount_of_entries as usize);
+    let mut sa = BitArray::<37>::with_capacity(amount_of_entries as usize);
 
     let mut index = 0;
     let mut buffer = [0; 8 * 4096];

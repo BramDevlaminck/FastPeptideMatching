@@ -94,7 +94,7 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
             //     &args.construction_algorithm,
             //     args.sample_rate,
             // )?
-            BitArray::<38>::with_capacity(1)
+            BitArray::<37>::with_capacity(1)
         }
     };
 

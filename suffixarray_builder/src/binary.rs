@@ -3,6 +3,8 @@ use std::error::Error;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 
+use bitarray::BitArray;
+
 const ONE_GIB: usize = 2usize.pow(30);
 
 pub trait Serializable {
@@ -53,28 +55,33 @@ pub fn write_binary(sample_rate: u8, suffix_array: &[i64], name: &str) -> Result
     Ok(())
 }
 
-pub fn load_binary(name: &str) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
+pub fn load_binary(name: &str) -> Result<(u8, BitArray<38>), Box<dyn Error>> {
     // read the SA and deserialize it into a vec of i64
     let sa_file = File::open(name)?;
     let (sample_rate, sa) = read_sa_file(&sa_file)?;
     Ok((sample_rate, sa))
 }
 
-fn read_sa_file(mut file: &File) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
+fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<38>), Box<dyn Error>> {
     let mut sample_rate_buffer = [0_u8; 1];
     file.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
     let sample_rate = sample_rate_buffer[0];
 
-    // this buffer is 1GiB big
-    let mut sa = vec![];
-    loop {
-        let mut buffer = vec![];
-        // use take in combination with read_to_end to ensure that the buffer will be completely filled (except when the file is smaller than the buffer)
-        let count = file.take(2 * ONE_GIB as u64).read_to_end(&mut buffer)?;
-        if count == 0 {
-            break;
+    let mut amount_of_entries_buffer = [0_u8; 8];
+    file.read_exact(&mut amount_of_entries_buffer).map_err(|_| "Could not read the amount of entries from the binary file")?;
+    let amount_of_entries = u64::from_le_bytes(amount_of_entries_buffer);
+
+    let mut sa = BitArray::<38>::with_capacity(amount_of_entries as usize);
+
+    let mut index = 0;
+    let mut buffer = [0; 8 * 4096];
+    let mut bytes_read = file.read(&mut buffer).unwrap();
+    while bytes_read > 0 {
+        for buffer_slice in buffer.chunks_exact(8) {
+            sa.set(index, u64::from_le_bytes(buffer_slice.try_into().unwrap()));
+            index += 1;
         }
-        sa.extend_from_slice(&deserialize_sa(&buffer[..count]));
+        bytes_read = file.read(&mut buffer).unwrap();
     }
 
     Ok((sample_rate, sa))

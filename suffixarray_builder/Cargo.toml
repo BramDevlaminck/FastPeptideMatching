@@ -11,3 +11,4 @@ tsv-utils = { path = "../tsv-utils" }
 libsais64-rs = { path = "../libsais64-rs" }
 libdivsufsort-rs = "0.1.0"
 sa-mappings = { path = "../sa-mappings" }
+bitarray = { path = "../bitarray" }

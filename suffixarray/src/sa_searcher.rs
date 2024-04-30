@@ -1,6 +1,7 @@
 use std::cmp::min;
 use std::fmt::{Display, Formatter};
 
+use bitarray::BitArray;
 use sa_mappings::functionality::{FunctionAggregator, FunctionalAggregation};
 use sa_mappings::proteins::{Protein, Proteins};
 use sa_mappings::taxonomy::TaxonAggregator;
@@ -101,7 +102,7 @@ impl Display for SearchMatchResult {
 }
 
 pub struct Searcher {
-    sa: Vec<i64>,
+    sa: BitArray<38>,
     pub sample_rate: u8,
     suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
     proteins: Proteins,
@@ -111,7 +112,7 @@ pub struct Searcher {
 
 impl Searcher {
     pub fn new(
-        sa: Vec<i64>,
+        sa: BitArray<38>,
         sample_rate: u8,
         suffix_index_to_protein: Box<dyn SuffixToProteinIndex>,
         proteins: Proteins,
@@ -199,7 +200,7 @@ impl Searcher {
         while right - left > 1 {
             let center = (left + right) / 2;
             let skip = min(lcp_left, lcp_right);
-            let (retval, lcp_center) = self.compare(search_string, self.sa[center], skip, bound);
+            let (retval, lcp_center) = self.compare(search_string, self.sa.get(center) as i64, skip, bound);
 
             found |= lcp_center == search_string.len();
 
@@ -216,7 +217,7 @@ impl Searcher {
         // handle edge case to search at index 0
         if right == 1 && left == 0 {
             let (retval, lcp_center) =
-                self.compare(search_string, self.sa[0], min(lcp_left, lcp_right), bound);
+                self.compare(search_string, self.sa.get(0) as i64, min(lcp_left, lcp_right), bound);
 
             found |= lcp_center == search_string.len();
 
@@ -276,7 +277,7 @@ impl Searcher {
             if let BoundSearchResult::SearchResult((min_bound, max_bound)) = bound_search_res {
                 // try all the partially matched suffixes
                 for sa_index in min_bound..max_bound {
-                    let suffix = self.sa[sa_index] as usize;
+                    let suffix = self.sa.get(sa_index) as usize;
                     // filter away matches where I was wrongfully equalized to L, and check the unmatched prefix
                     // when I and L equalized, we only need to check the prefix, not the whole match, when the prefix is 0, we don't need to check at all
                     if suffix >= skip
@@ -339,7 +340,7 @@ impl Searcher {
                 // try all the partially matched suffixes and store the matching suffixes in an array (stop when our max number of matches is reached)
                 let mut sa_index = min_bound;
                 while sa_index < max_bound {
-                    let suffix = self.sa[sa_index] as usize;
+                    let suffix = self.sa.get(sa_index) as usize;
                     // filter away matches where I was wrongfully equalized to L, and check the unmatched prefix
                     // when I and L equalized, we only need to check the prefix, not the whole match, when the prefix is 0, we don't need to check at all
                     if suffix >= skip

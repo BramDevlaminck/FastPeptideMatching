@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::num::NonZeroUsize;
 
+use bitarray::BitArray;
 use clap::{arg, Parser, ValueEnum};
 
 use sa_mappings::functionality::FunctionAggregator;
@@ -88,19 +89,20 @@ pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
         None => {
             let protein_sequences =
                 Proteins::try_from_database_file(&args.database_file, &taxon_id_calculator)?;
-            build_sa(
-                &mut protein_sequences.input_string.clone(),
-                &args.construction_algorithm,
-                args.sample_rate,
-            )?
+            // build_sa(
+            //     &mut protein_sequences.input_string.clone(),
+            //     &args.construction_algorithm,
+            //     args.sample_rate,
+            // )?
+            BitArray::<38>::with_capacity(1)
         }
     };
 
     let proteins = Proteins::try_from_database_file(&args.database_file, &taxon_id_calculator)?;
 
-    if let Some(output) = &args.output {
-        write_binary(args.sample_rate, &sa, output)?;
-    }
+    // if let Some(output) = &args.output {
+    //     write_binary(args.sample_rate, &sa, output)?;
+    // }
 
     // option that only builds the tree, but does not allow for querying (easy for benchmark purposes)
     if args.build_only {

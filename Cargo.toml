@@ -10,5 +10,6 @@ members = [
     "suffixarray_builder",
 
     "fa-compression",
-    "sa-mappings"
+    "sa-mappings",
+    "bitarray"
 ]

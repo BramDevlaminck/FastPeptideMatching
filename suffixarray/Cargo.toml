@@ -15,3 +15,4 @@ suffixarray_builder = { path = "../suffixarray_builder" }
 sa-mappings = { path = "../sa-mappings" }
 futures = "0.3.30"
 serde_json = "1.0.116"
+bitarray = { path = "../bitarray" }

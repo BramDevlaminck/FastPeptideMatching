@@ -67,9 +67,13 @@ fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<38>), Box<dyn Error>> {
     file.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
     let sample_rate = sample_rate_buffer[0];
 
+    eprintln!("Reading the sample rate from the binary file: {}", sample_rate);
+
     let mut amount_of_entries_buffer = [0_u8; 8];
     file.read_exact(&mut amount_of_entries_buffer).map_err(|_| "Could not read the amount of entries from the binary file")?;
     let amount_of_entries = u64::from_le_bytes(amount_of_entries_buffer);
+
+    eprintln!("Reading the amount of entries from the binary file: {}", amount_of_entries);
 
     let mut sa = BitArray::<38>::with_capacity(amount_of_entries as usize);
 

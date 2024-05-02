@@ -1,4 +1,4 @@
-use std::io::{stdin, stdout, BufReader, BufWriter, Read};
+use std::io::{stdin, stdout, BufReader, BufWriter, Read, Write};
 
 use bitarray::{binary::Binary, BitArray};
 
@@ -11,8 +11,11 @@ pub fn main() {
 
     let mut sample_rate_buffer = [0_u8; 1];
     reader.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file").unwrap();
+    writer.write(&sample_rate_buffer).unwrap();
 
-    let mut bitarray = BitArray::<38>::with_capacity(30_000_000_000);
+    let size: usize = 30_000_000_000;
+    let mut bitarray = BitArray::<37>::with_capacity(size);
+    writer.write(&size.to_le_bytes()).unwrap();
 
     // this buffer is 1GiB big
     let mut index = 0;

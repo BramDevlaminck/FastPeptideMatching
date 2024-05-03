@@ -25,8 +25,8 @@ impl<const B: usize> BitArray<B> {
 
         if start_block_offset + B <= 64 {
             if index >= 1023 && index <= 1025 {
-                eprintln!("data: {0:64b}", self.data[start_block]);
                 eprintln!("shift: {}", (64 - start_block_offset - B));
+                eprintln!("data: {0:64b}", self.data[start_block]);
                 eprintln!("shifted: {0:64b}", self.data[start_block] >> (64 - start_block_offset - B));
                 eprintln!("result: {}", self.data[start_block] >> (64 - start_block_offset - B) & self.mask);
             }
@@ -53,26 +53,35 @@ impl<const B: usize> BitArray<B> {
     }
 
     pub fn set(&mut self, index: usize, value: u64) {
-        // if index >= 1023 && index <= 1025 {
-        //     //eprintln!("index: ", index);
-        // }
+        if index >= 1023 && index <= 1025 {
+            eprintln!("started inserting value {} at index: {}", value, index);
+            eprintln!("value in binary: {:064b}", value);
+            eprintln!();
+        }
 
         let start_block = index * B / 64;
         let start_block_offset = index * B % 64;
 
-        // if index >= 1023 && index <= 1025 {
-        //     eprintln!("start_block: {}, start_block_offset: {}", start_block, start_block_offset);
-        // }
+        if index >= 1023 && index <= 1025 {
+            eprintln!("start block in bitarray: {}", start_block);
+            eprintln!("start block offset in bitarray: {}", start_block_offset);
+            eprintln!();
+        }
 
         if start_block_offset + B <= 64 {
-            // if index >= 1023 && index <= 1025 {
-            //     eprintln!("shift: {}", (64 - start_block_offset - B));
-            //     eprintln!("data:          {:064b}", self.data[start_block]);
-            //     eprintln!("value:         {:064b}", value);
-            //     eprintln!("shifted value: {:064b}", value << (64 - start_block_offset - B));
-            //     eprintln!("!mask:         {:064b}", !(self.mask << (64 - start_block_offset - B)));
-            //     eprintln!("and !mask:     {:064b}", self.data[start_block] & !(self.mask << (64 - start_block_offset - B)));
-            // }
+            if index >= 1023 && index <= 1025 {
+                eprintln!("The amount to shift the value: {}", (64 - start_block_offset - B));
+                eprintln!();
+                eprintln!("current data in bitarray: {0:064b}", self.data[start_block]);
+                eprintln!("value in binary:          {:064b}", value);
+                eprintln!("shifted value in binary:  {:064b}", value << (64 - start_block_offset - B));
+                eprintln!();
+                eprintln!("not mask to keep bits:    {:064b}", !(self.mask << (64 - start_block_offset - B)));
+                eprintln!("masked result:            {:064b}", self.data[start_block] & !(self.mask << (64 - start_block_offset - B)));
+                eprintln!();
+                eprintln!("result:                   {:064b}", (self.data[start_block] & !(self.mask << (64 - start_block_offset - B))) | (value << (64 - start_block_offset - B)));
+                eprintln!();
+            }
 
             self.data[start_block] &= !(self.mask << (64 - start_block_offset - B));
             self.data[start_block] |= value << (64 - start_block_offset - B);
@@ -82,11 +91,37 @@ impl<const B: usize> BitArray<B> {
         let end_block = (index + 1) * B / 64;
         let end_block_offset = (index + 1) * B % 64;
 
+        if index >= 1023 && index <= 1025 {
+            eprintln!("end block in bitarray: {}", end_block);
+            eprintln!("end block offset in bitarray: {}", end_block_offset);
+            eprintln!();
+        }
+
+        if index >= 1023 && index <= 1025 {
+            eprintln!("not mask to keep bits:        {:064b}", !(self.mask >> start_block_offset));
+            eprintln!("masked result:                {:064b}", self.data[start_block] & !(self.mask >> start_block_offset));
+            eprintln!();
+            eprintln!("result:                       {:064b}", (self.data[start_block] & !(self.mask >> start_block_offset)) | (value >> end_block_offset));
+            eprintln!();
+        }
+
         self.data[start_block] &= !(self.mask >> start_block_offset);
         self.data[start_block] |= value >> end_block_offset;
 
+        if index >= 1023 && index <= 1025 {
+            eprintln!("not mask to keep bits:        {:064b}", !(self.mask << (64 - end_block_offset)));
+            eprintln!("masked result:                {:064b}", self.data[end_block] & !(self.mask << (64 - end_block_offset)));
+            eprintln!();
+            eprintln!("result:                       {:064b}", (self.data[end_block] & !(self.mask << (64 - end_block_offset)) | (value << (64 - end_block_offset))));
+            eprintln!();
+        }
+
         self.data[end_block] &= !(self.mask << (64 - end_block_offset));
         self.data[end_block] |= value << (64 - end_block_offset);
+
+        eprintln!("finished inserting value {} at index: {}", value, index);
+        eprintln!("=================================");
+        eprintln!();
     }
 
     pub fn len(&self) -> usize {

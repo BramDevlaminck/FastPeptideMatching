@@ -6,6 +6,8 @@ pub fn main() {
     let stdin = stdin();
     let stdout = stdout();
 
+    eprintln!("size of usize: {}", std::mem::size_of::<usize>());
+
     let mut reader = BufReader::new(stdin.lock());
     let mut writer = BufWriter::new(stdout.lock());
 

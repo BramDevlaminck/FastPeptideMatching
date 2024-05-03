@@ -119,9 +119,11 @@ impl<const B: usize> BitArray<B> {
         self.data[end_block] &= !(self.mask << (64 - end_block_offset));
         self.data[end_block] |= value << (64 - end_block_offset);
 
-        eprintln!("finished inserting value {} at index: {}", value, index);
-        eprintln!("=================================");
-        eprintln!();
+        if index >= 1023 && index <= 1025 {
+            eprintln!("finished inserting value {} at index: {}", value, index);
+            eprintln!("=================================");
+            eprintln!();
+        }
     }
 
     pub fn len(&self) -> usize {

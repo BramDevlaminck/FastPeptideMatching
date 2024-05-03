@@ -27,9 +27,9 @@ pub fn main() {
     let mut bytes_read = reader.read(&mut buffer).unwrap();
     while bytes_read > 0 {
         for buffer_slice in buffer[..bytes_read].chunks_exact(8) {
-            if index == 0 {
-                eprintln!("value (0) slice: {:?}", buffer_slice);
-                eprintln!("value (0) from_le_bytes: {}", u64::from_le_bytes(buffer_slice.try_into().unwrap()));
+            if index == 0 || (index >= 1023 && index <= 1025) {
+                eprintln!("value ({}) slice: {:?}", index, buffer_slice);
+                eprintln!("value ({}) from_le_bytes: {}", index, u64::from_le_bytes(buffer_slice.try_into().unwrap()));
             }
 
             bitarray.set(index, u64::from_le_bytes(buffer_slice.try_into().unwrap()));

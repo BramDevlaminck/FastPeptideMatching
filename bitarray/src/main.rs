@@ -23,18 +23,32 @@ pub fn main() {
 
     // this buffer is 1GiB big
     let mut index = 0;
-    let mut buffer = [0; 8 * 1024];
+    let mut buffer = [0; 8];
     let mut bytes_read = reader.read(&mut buffer).unwrap();
+
+    //println!("buffer: {:?}", buffer);
+
     while bytes_read > 0 {
         for buffer_slice in buffer[..bytes_read].chunks_exact(8) {
-            if index == 0 || (index >= 1023 && index <= 1025) {
+            // if index == 0 || (index >= 1023 && index <= 1025) {
+            //     eprintln!("value ({}) slice: {:?}", index, buffer_slice);
+            //     eprintln!("value ({}) from_le_bytes: {}", index, u64::from_le_bytes(buffer_slice.try_into().unwrap()));
+            // }
+
+            if !(buffer[5] == 0 && buffer[6] == 0 && buffer[7] == 0) {
                 eprintln!("value ({}) slice: {:?}", index, buffer_slice);
-                eprintln!("value ({}) from_le_bytes: {}", index, u64::from_le_bytes(buffer_slice.try_into().unwrap()));
+                bytes_read = 0;
+                break;
             }
 
             bitarray.set(index, u64::from_le_bytes(buffer_slice.try_into().unwrap()));
             index += 1;
         }
+        
+        if bytes_read == 0 {
+            break;
+        }
+
         bytes_read = reader.read(&mut buffer).unwrap();
     }
 

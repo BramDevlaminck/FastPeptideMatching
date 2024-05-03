@@ -84,6 +84,7 @@ fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<37>), Box<dyn Error>> {
     eprintln!("value (1023): {}", sa.get(1023));
     eprintln!("value (1024): {}", sa.get(1024));
     eprintln!("value (1025): {}", sa.get(1025));
+    eprintln!("value (29_401_012_224): {}", sa.get(29_401_012_224));
 
     Ok((sample_rate, sa))
 }

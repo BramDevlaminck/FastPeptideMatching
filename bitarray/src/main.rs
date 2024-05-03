@@ -3,9 +3,8 @@ use std::io::{stdin, stdout, BufReader, BufWriter, Read, Write};
 use bitarray::{binary::Binary, BitArray};
 
 pub fn main() {
-    //let mut reader = std::fs::File::open("sa.bin").unwrap();
+    let mut reader = std::fs::File::open("sa.bin").unwrap();
 
-    let mut stdin = stdin().lock();
     let stdout = stdout();
 
     eprintln!("size of usize: {}", std::mem::size_of::<usize>());
@@ -14,7 +13,7 @@ pub fn main() {
     let mut writer = BufWriter::new(stdout.lock());
 
     let mut sample_rate_buffer = [0_u8; 1];
-    stdin.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file").unwrap();
+    reader.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file").unwrap();
     writer.write(&sample_rate_buffer).unwrap();
 
     eprintln!("Reading the sample rate from the binary file: {}", sample_rate_buffer[0]);
@@ -26,7 +25,7 @@ pub fn main() {
     // this buffer is 1GiB big
     let mut index = 0;
     let mut buffer = [0; 8];
-    let mut bytes_read = stdin.read(&mut buffer).unwrap();
+    let mut bytes_read = reader.read(&mut buffer).unwrap();
 
     //println!("buffer: {:?}", buffer);
 
@@ -51,7 +50,7 @@ pub fn main() {
             break;
         }
 
-        bytes_read = stdin.read(&mut buffer).unwrap();
+        bytes_read = reader.read(&mut buffer).unwrap();
     }
 
     bitarray.write_binary(&mut writer).unwrap();

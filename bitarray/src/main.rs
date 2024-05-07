@@ -7,17 +7,17 @@ pub fn main() {
     let stdout = stdout();
 
     let mut reader = stdin.lock().bytes();
-    //let mut writer = BufWriter::new(stdout.lock());
+    let mut writer = BufWriter::new(stdout.lock());
 
     let sample_rate = reader.next().unwrap().unwrap();
-    //writer.write(&[sample_rate]).unwrap();
+    writer.write(&[sample_rate]).unwrap();
 
     // eprintln!("Reading the sample rate from the binary file: {}", sample_rate);
 
     //let size: usize = 29_401_012_218;
     let size: usize = 25_000;
     let mut bitarray = BitArray::<37>::with_capacity(size);
-    //writer.write(&size.to_le_bytes()).unwrap();
+    writer.write(&size.to_le_bytes()).unwrap();
 
     let mut index = 0;
     let mut buffer = [0; 8];
@@ -44,5 +44,5 @@ pub fn main() {
     //     eprintln!("value ({}): {}", i, bitarray.get(i as usize));
     // }
 
-    //bitarray.write_binary(&mut writer).unwrap();
+    bitarray.write_binary(&mut writer).unwrap();
 }

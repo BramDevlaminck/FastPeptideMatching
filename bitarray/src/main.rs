@@ -6,11 +6,12 @@ pub fn main() {
     let stdin = stdin();
     let stdout = stdout();
 
-    let mut reader = stdin.lock().bytes();
+    let mut reader = stdin.lock();
     let mut writer = BufWriter::new(stdout.lock());
 
-    let sample_rate = reader.next().unwrap().unwrap();
-    writer.write(&[sample_rate]).unwrap();
+    let mut sample_rate_buffer = [0_u8; 1];
+    reader.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file").unwrap();
+    writer.write(&sample_rate_buffer).unwrap();
 
     // eprintln!("Reading the sample rate from the binary file: {}", sample_rate);
 
@@ -20,16 +21,10 @@ pub fn main() {
     writer.write(&size.to_le_bytes()).unwrap();
 
     let mut index = 0;
-    let mut buffer = [0; 8];
-    let mut byte_count = 0;
-    for byte in reader {
-        buffer[byte_count] = byte.unwrap();
-        byte_count += 1;
-
-        if byte_count == 8 {
-            //println!("{:064b}", i64::from_le_bytes(buffer));
-            bitarray.set(index, u64::from_le_bytes(buffer));
-            byte_count = 0;
+    let mut buffer = vec![0; 8 * 1024];
+    while fill_buffer(&mut reader, &mut buffer) {
+        for buffer_slice in buffer.chunks_exact(8) {
+            bitarray.set(index, u64::from_le_bytes(buffer_slice.try_into().unwrap()));
             index += 1;
         }
     }
@@ -39,4 +34,30 @@ pub fn main() {
     }
 
     bitarray.write_binary(&mut writer).unwrap();
+}
+
+fn fill_buffer<T: Read>(input: &mut T, buffer: &mut Vec<u8>) -> bool {
+    let mut writable_buffer_space = buffer.as_mut();
+
+    loop {
+        match input.read(writable_buffer_space) {
+            // No bytes written, which means we've completely filled the buffer
+            // or we've reached the end of the file
+            Ok(0) => {
+                // If the writable buffer slice is empty, we've completely filled the buffer
+                // If the writable buffer slice is non-empty, we've reached the end of the file
+                return writable_buffer_space.is_empty();
+            }
+
+            // We've read {bytes_read} bytes
+            Ok(bytes_read) => {
+                // Shrink the writable buffer slice
+                writable_buffer_space = writable_buffer_space[bytes_read..].as_mut();
+            }
+
+            Err(err) => {
+                panic!("Error while reading input: {}", err);
+            }
+        }
+    }
 }

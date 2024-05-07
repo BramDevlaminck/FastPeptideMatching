@@ -1,4 +1,4 @@
-use std::io::{BufRead, Result, Write};
+use std::io::{BufRead, Read, Result, Write};
 
 use crate::BitArray;
 
@@ -19,16 +19,40 @@ impl<const B: usize> Binary for BitArray<B> {
     fn read_binary<R: BufRead>(&mut self, mut reader: R) -> Result<()> {
         self.data.clear();
 
-        let mut buffer = [0; 8 * 1024];
-        let mut bytes_read = reader.read(&mut buffer)?;
-        while bytes_read > 0 {
+        let mut buffer = vec![0; 8 * 1024];
+        while fill_buffer(&mut reader, &mut buffer) {
             for buffer_slice in buffer.chunks_exact(8) {
                 self.data.push(u64::from_le_bytes(buffer_slice.try_into().unwrap()));
             }
-            bytes_read = reader.read(&mut buffer)?;
         }
 
         Ok(())
+    }
+}
+
+fn fill_buffer<T: Read>(input: &mut T, buffer: &mut Vec<u8>) -> bool {
+    let mut writable_buffer_space = buffer.as_mut();
+
+    loop {
+        match input.read(writable_buffer_space) {
+            // No bytes written, which means we've completely filled the buffer
+            // or we've reached the end of the file
+            Ok(0) => {
+                // If the writable buffer slice is empty, we've completely filled the buffer
+                // If the writable buffer slice is non-empty, we've reached the end of the file
+                return writable_buffer_space.is_empty();
+            }
+
+            // We've read {bytes_read} bytes
+            Ok(bytes_read) => {
+                // Shrink the writable buffer slice
+                writable_buffer_space = writable_buffer_space[bytes_read..].as_mut();
+            }
+
+            Err(err) => {
+                panic!("Error while reading input: {}", err);
+            }
+        }
     }
 }
 

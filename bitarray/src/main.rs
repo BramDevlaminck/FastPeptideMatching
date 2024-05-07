@@ -15,7 +15,7 @@ pub fn main() {
     // eprintln!("Reading the sample rate from the binary file: {}", sample_rate);
 
     //let size: usize = 29_401_012_218;
-    let size: usize = 25_000;
+    let size: usize = 200_000_000;
     let mut bitarray = BitArray::<37>::with_capacity(size);
     writer.write(&size.to_le_bytes()).unwrap();
 

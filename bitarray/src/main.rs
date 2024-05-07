@@ -34,7 +34,7 @@ pub fn main() {
         }
     }
 
-    for i in (0 .. 5_000).step_by(250) {
+    for i in (0 .. 20_000).step_by(250) {
         eprintln!("value ({}): {}", i, bitarray.get(i as usize));
     }
 

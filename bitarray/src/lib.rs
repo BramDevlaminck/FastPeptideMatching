@@ -56,6 +56,8 @@ impl<const B: usize> BitArray<B> {
         let start_block = index * B / 64;
         let start_block_offset = index * B % 64;
 
+        println!("start_block: {}, start_block_offset: {}", start_block, start_block_offset);
+
         if start_block_offset + B <= 64 {
             self.data[start_block] &= !(self.mask << (64 - start_block_offset - B));
             self.data[start_block] |= value << (64 - start_block_offset - B);

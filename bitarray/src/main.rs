@@ -15,7 +15,7 @@ pub fn main() {
     // eprintln!("Reading the sample rate from the binary file: {}", sample_rate);
 
     //let size: usize = 29_401_012_218;
-    let size: usize = 10_000;
+    let size: usize = 25_000;
     let mut bitarray = BitArray::<37>::with_capacity(size);
     //writer.write(&size.to_le_bytes()).unwrap();
 
@@ -27,8 +27,8 @@ pub fn main() {
         byte_count += 1;
 
         if byte_count == 8 {
-            println!("{:064b}", i64::from_le_bytes(buffer));
-            //bitarray.set(index, u64::from_le_bytes(buffer));
+            //println!("{:064b}", i64::from_le_bytes(buffer));
+            bitarray.set(index, u64::from_le_bytes(buffer));
             byte_count = 0;
             index += 1;
         }

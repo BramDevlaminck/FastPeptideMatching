@@ -34,15 +34,9 @@ pub fn main() {
         }
     }
 
-    // eprintln!("value (1023): {}", bitarray.get(1023));
-    // eprintln!("value (1024): {}", bitarray.get(1024));
-    // eprintln!("value (1025): {}", bitarray.get(1025));
-    // eprintln!("value (1999): {}", bitarray.get(1999));
-    // //eprintln!("value ({}): {}", amount_of_entries - 1, sa.get(amount_of_entries as usize - 1));
-
-    // for i in (1_000 .. 5_000).step_by(250) {
-    //     eprintln!("value ({}): {}", i, bitarray.get(i as usize));
-    // }
+    for i in (0 .. 5_000).step_by(250) {
+        eprintln!("value ({}): {}", i, bitarray.get(i as usize));
+    }
 
     bitarray.write_binary(&mut writer).unwrap();
 }

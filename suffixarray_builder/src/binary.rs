@@ -84,7 +84,9 @@ fn read_sa_file(mut file: &File) -> Result<(u8, BitArray<37>), Box<dyn Error>> {
     eprintln!("value (1023): {}", sa.get(1023));
     eprintln!("value (1024): {}", sa.get(1024));
     eprintln!("value (1025): {}", sa.get(1025));
-    eprintln!("value ({}): {}", amount_of_entries - 1, sa.get(amount_of_entries as usize - 1));
+    
+    eprintln!("value (1999): {}", sa.get(1999));
+    //eprintln!("value ({}): {}", amount_of_entries - 1, sa.get(amount_of_entries as usize - 1));
 
     for i in (1_000 .. 5_000).step_by(250) {
         eprintln!("value ({}): {}", i, sa.get(i as usize));

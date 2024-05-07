@@ -34,8 +34,8 @@ fn default_cutoff() -> usize {
     10000
 }
 
-fn default_true() -> bool {
-    true
+fn default_false() -> bool {
+    false
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,7 +47,7 @@ struct InputData {
     #[serde(default = "bool::default")]
     // default value is false // TODO: maybe default should be true?
     equalize_I_and_L: bool,
-    #[serde(default = "default_true")] // default value is true
+    #[serde(default = "default_false")] // default value is false
     clean_taxa: bool,
 }
 

@@ -20,9 +20,15 @@ impl<const B: usize> Binary for BitArray<B> {
         self.data.clear();
 
         let mut buffer = vec![0; 8 * 1024];
-        while fill_buffer(&mut reader, &mut buffer) {
-            for buffer_slice in buffer.chunks_exact(8) {
+ 
+        loop {
+            let (finished, bytes_read) = fill_buffer(&mut reader, &mut buffer);
+            for buffer_slice in buffer[..bytes_read].chunks_exact(8) {
                 self.data.push(u64::from_le_bytes(buffer_slice.try_into().unwrap()));
+            }
+
+            if finished {
+                break;
             }
         }
 
@@ -30,7 +36,11 @@ impl<const B: usize> Binary for BitArray<B> {
     }
 }
 
-fn fill_buffer<T: Read>(input: &mut T, buffer: &mut Vec<u8>) -> bool {
+fn fill_buffer<T: Read>(input: &mut T, buffer: &mut Vec<u8>) -> (bool, usize) {
+    // Store the buffer size in advance, because rust will complain
+    // about the buffer being borrowed mutably while it's borrowed
+    let buffer_size = buffer.len();
+
     let mut writable_buffer_space = buffer.as_mut();
 
     loop {
@@ -38,9 +48,10 @@ fn fill_buffer<T: Read>(input: &mut T, buffer: &mut Vec<u8>) -> bool {
             // No bytes written, which means we've completely filled the buffer
             // or we've reached the end of the file
             Ok(0) => {
-                // If the writable buffer slice is empty, we've completely filled the buffer
-                // If the writable buffer slice is non-empty, we've reached the end of the file
-                return writable_buffer_space.is_empty();
+                return (
+                    !writable_buffer_space.is_empty(),
+                    buffer_size - writable_buffer_space.len()
+                );
             }
 
             // We've read {bytes_read} bytes

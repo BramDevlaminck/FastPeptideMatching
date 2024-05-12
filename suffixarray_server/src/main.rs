@@ -34,8 +34,9 @@ fn default_cutoff() -> usize {
     10000
 }
 
-fn default_false() -> bool {
-    false
+#[allow(dead_code)]
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,8 +48,10 @@ struct InputData {
     #[serde(default = "bool::default")]
     // default value is false // TODO: maybe default should be true?
     equalize_I_and_L: bool,
-    #[serde(default = "default_false")] // default value is false
+    #[serde(default = "bool::default")] // default value is false
     clean_taxa: bool,
+    #[serde(default = "bool::default")] // default value is false
+    search_only: bool,
 }
 
 // basic handler that responds with a static string
@@ -67,6 +70,7 @@ async fn search(
         data.cutoff,
         data.equalize_I_and_L,
         data.clean_taxa,
+        data.search_only
     );
 
     Ok(Json(search_result))

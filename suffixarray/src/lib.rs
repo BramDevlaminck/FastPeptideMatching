@@ -69,6 +69,8 @@ pub struct Arguments {
     equalize_i_and_l: bool,
     #[arg(long)]
     clean_taxa: bool,
+    #[arg(long)]
+    search_only: bool
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -158,6 +160,7 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
         cutoff,
         args.equalize_i_and_l,
         args.clean_taxa,
+        args.search_only
     );
     println!("{}", serde_json::to_string(&search_result)?);
     let end_time = get_time_ms()?;

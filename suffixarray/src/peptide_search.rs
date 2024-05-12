@@ -32,11 +32,12 @@ pub fn search_all_peptides(
     cutoff: usize,
     equalize_i_and_l: bool,
     clean_taxa: bool,
+    search_only: bool
 ) -> OutputData {
     let res: Vec<SearchResult> = peptides
         .par_iter()
         // calculate the results
-        .map(|peptide| search_peptide(searcher, peptide, cutoff, equalize_i_and_l, clean_taxa))
+        .map(|peptide| search_peptide(searcher, peptide, cutoff, equalize_i_and_l, clean_taxa, search_only))
         .enumerate()
         // remove the peptides that did not match any proteins
         .filter(|(_, search_result)| search_result.is_some())
@@ -70,6 +71,7 @@ pub fn search_peptide(
     cutoff: usize,
     equalize_i_and_l: bool,
     clean_taxa: bool,
+    search_only: bool
 ) -> Option<PeptideSearchResult> {
     let peptide = peptide.strip_suffix('\n').unwrap_or(peptide).to_uppercase();
     
@@ -99,6 +101,16 @@ pub fn search_peptide(
     }
     
     let (uniprot_accession_numbers, taxa) = Searcher::get_uniprot_and_taxa_ids(&proteins);
+    
+    if search_only {
+        return Some(PeptideSearchResult {
+            lca: None,
+            cutoff_used,
+            uniprot_accession_numbers,
+            taxa,
+            fa: None,
+        })
+    }
     
     // calculate the lca
     let lca = if cutoff_used {

@@ -13,8 +13,9 @@ use sa_mappings::taxonomy::{AggregationMethod, TaxonAggregator};
 use suffixarray::peptide_search::{OutputData, analyse_all_peptides, SearchResultWithAnalysis, SearchOnlyResult, search_all_peptides};
 use suffixarray::sa_searcher::Searcher;
 use suffixarray::suffix_to_protein_index::SparseSuffixToProtein;
-use suffixarray_builder::binary::load_binary;
+use suffixarray_builder::binary::load_suffix_array;
 
+/// Enum that represents all possible commandline arguments
 #[derive(Parser, Debug)]
 pub struct Arguments {
     /// File with the proteins used to build the suffix tree. All the proteins are expected to be concatenated using a `#`.
@@ -32,11 +33,19 @@ fn default_cutoff() -> usize {
     10000
 }
 
+/// Function used by serde to use `true` as a default value
 #[allow(dead_code)]
 fn default_true() -> bool {
     true
 }
 
+/// Struct representing the input arguments accepted by the endpoints
+/// 
+/// # Arguments
+/// * `peptides` - List of peptides we want to process
+/// * `cutoff` - The maximum amount of matches to process, default value 10000
+/// * `equalize_I_and_L` - True if we want to equalize I and L during search
+/// * `clean_taxa` - True if we only want to use proteins marked as "valid"
 #[derive(Debug, Deserialize, Serialize)]
 #[allow(non_snake_case)]
 struct InputData {
@@ -50,12 +59,29 @@ struct InputData {
     clean_taxa: bool,
 }
 
-// basic handler that responds with a static string
+#[tokio::main]
+async fn main() {
+    let args = Arguments::parse();
+    if let Err(err) = start_server(args).await {
+        eprintln!("{}", err);
+        std::process::exit(1);
+    }
+}
+
+/// Basic handler used to check the server status
 async fn root() -> &'static str {
     "Server is online"
 }
 
-/// Search all the peptides in the given data json using the searcher and perform the analyses
+/// Endpoint executed for peptide matching and taxonomic and functional analysis
+///
+/// # Arguments
+/// * `state(searcher)` - The searcher object provided by the server
+/// * `data` - InputData object provided by the user with the peptides to be searched and the config
+/// 
+/// # Returns
+///
+/// Returns the search and analysis results from the index as a JSON
 async fn analysis(
     State(searcher): State<Arc<Searcher>>,
     data: Json<InputData>,
@@ -71,7 +97,15 @@ async fn analysis(
     Ok(Json(search_result))
 }
 
-/// Search all the peptides in the given data json using the searcher.
+/// Endpoint executed for peptide matching, without any analysis
+///
+/// # Arguments
+/// * `state(searcher)` - The searcher object provided by the server
+/// * `data` - InputData object provided by the user with the peptides to be searched and the config
+///
+/// # Returns
+///
+/// Returns the search results from the index as a JSON
 async fn search(
     State(searcher): State<Arc<Searcher>>,
     data: Json<InputData>,
@@ -87,15 +121,18 @@ async fn search(
     Ok(Json(search_result))
 }
 
-#[tokio::main]
-async fn main() {
-    let args = Arguments::parse();
-    if let Err(err) = start_server(args).await {
-        eprintln!("{}", err);
-        std::process::exit(1);
-    }
-}
-
+/// Starts the server with the provided commandline arguments
+///
+/// # Arguments
+/// * `args` - The provided commandline arguments
+///
+/// # Returns
+///
+/// Returns ()
+/// 
+/// # Errors
+/// 
+/// Returns any error occurring during the startup or uptime of the server
 async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
     let Arguments {
         database_file,
@@ -104,7 +141,7 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
     } = args;
 
     eprintln!("Loading suffix array...");
-    let (sample_rate, sa) = load_binary(&index_file)?;
+    let (sparseness_factor, sa) = load_suffix_array(&index_file)?;
 
     eprintln!("Loading taxon file...");
     let taxon_id_calculator =
@@ -119,7 +156,7 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
     eprintln!("Creating searcher...");
     let searcher = Arc::new(Searcher::new(
         sa,
-        sample_rate,
+        sparseness_factor,
         suffix_index_to_protein,
         proteins,
         taxon_id_calculator,

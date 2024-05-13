@@ -38,4 +38,4 @@ cd $PBS_O_WORKDIR
 cargo build --release
 
 # execute
-./target/release/suffixarray_builder -d "$prefix"uniprot_protein_database_minimal.tsv -t "$prefix"taxons.tsv --sample-rate 3 --construction-algorithm lib-div-suf-sort -o "$prefix"uniprot_minimal_sparse3
+./target/release/suffixarray_builder -d "$prefix"uniprot_protein_database_minimal.tsv -t "$prefix"taxons.tsv --sparseness-factor 3 --construction-algorithm lib-div-suf-sort -o "$prefix"uniprot_suffix_array_sparse3.bin

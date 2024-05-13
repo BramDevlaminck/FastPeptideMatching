@@ -4,6 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus};
 
+/// Custom error for compilation of the C library
 #[derive(Debug)]
 struct CompileError<'a> {
     command: &'a str,
@@ -24,6 +25,19 @@ impl<'a> Display for CompileError<'a> {
 
 impl<'a> Error for CompileError<'a> {}
 
+/// Handles the exit statuses of the executed bash commands
+///
+/// # Arguments
+/// * `name` - Name of the executed bash command
+/// * `exit_states` - The exit status of the executed bash command
+///
+/// # Returns
+///
+/// Returns () if the exit status was success
+/// 
+/// # Errors
+/// 
+/// Returns a CompilationError if the command failed
 fn exit_status_to_result(name: &str, exit_status: ExitStatus) -> Result<(), CompileError> {
     match exit_status.success() {
         true => Ok(()),

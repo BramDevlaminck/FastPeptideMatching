@@ -72,9 +72,7 @@ impl Proteins {
         let mut proteins: Vec<Protein> = Vec::new();
 
         let file = File::open(file)?;
-
-        let mut start_index = 0;
-
+        
         // Read the lines as bytes, since the input string is not guaranteed to be utf8
         // because of the encoded functional annotations
         let mut lines = ByteLines::new(BufReader::new(file));
@@ -101,7 +99,6 @@ impl Proteins {
                 functional_annotations
             });
 
-            start_index += sequence.len() + 1;
         }
 
         input_string.pop();
@@ -112,6 +109,52 @@ impl Proteins {
             input_string: input_string.into_bytes(),
             proteins
         })
+    }
+
+    /// Creates a `vec<u8>` which represents all the proteins concatenated from the database file
+    ///
+    /// # Arguments
+    /// * `file` - The path to the database file
+    /// * `taxon_aggregator` - The `TaxonAggregator` to use
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing the `Vec<u8>`
+    ///
+    /// # Errors
+    ///
+    /// Returns a `Box<dyn Error>` if an error occurred while reading the database file
+    pub fn try_from_database_file_without_annotations(database_file: &str, taxon_aggregator: &TaxonAggregator) -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut input_string: String = String::new();
+
+        let file = File::open(database_file)?;
+
+        // Read the lines as bytes, since the input string is not guaranteed to be utf8
+        // because of the encoded functional annotations
+        let mut lines = ByteLines::new(BufReader::new(file));
+
+        while let Some(Ok(line)) = lines.next() {
+            let mut fields = line.split(|b| *b == b'\t');
+
+            // only get the taxon id and sequence from each line, we don't need the other parts
+            fields.next();
+            let taxon_id = from_utf8(fields.next().unwrap())?.parse::<TaxonId>()?;
+            let sequence = from_utf8(fields.next().unwrap())?;
+            fields.next();
+
+            if !taxon_aggregator.taxon_exists(taxon_id) {
+                continue;
+            }
+
+            input_string.push_str(&sequence.to_uppercase());
+            input_string.push(SEPARATION_CHARACTER.into());
+        }
+
+        input_string.pop();
+        input_string.push(TERMINATION_CHARACTER.into());
+
+        input_string.shrink_to_fit();
+        Ok(input_string.into_bytes())
     }
     
 }
@@ -280,5 +323,28 @@ mod tests {
                 "GO:0009279;IPR:IPR016364;IPR:IPR008816"
             );
         }
+    }
+
+    #[test]
+    fn test_get_concatenated_proteins() {
+        // Create a temporary directory for this test
+        let tmp_dir = TempDir::new("test_get_fa").unwrap();
+
+        let database_file = create_database_file(&tmp_dir);
+        let taxonomy_file = create_taxonomy_file(&tmp_dir);
+
+        let taxon_aggregator = TaxonAggregator::try_from_taxonomy_file(
+            taxonomy_file.to_str().unwrap(),
+            AggregationMethod::Lca
+        )
+            .unwrap();
+        let proteins =
+            Proteins::try_from_database_file_without_annotations(database_file.to_str().unwrap(), &taxon_aggregator)
+                .unwrap();
+        
+        let sep_char = SEPARATION_CHARACTER as char;
+        let end_char = TERMINATION_CHARACTER as char;
+        let expected = format!("MLPGLALLLLAAWTARALEV{}PTDGNAGLLAEPQIAMFCGRLNMHMNVQNG{}KWDSDPSGTKTCIDT{}KEGILQYCQEVYPELQITNVVEANQPVTIQNWCKRGRKQCKTHPH{}", sep_char, sep_char, sep_char, end_char);
+        assert_eq!(proteins, expected.as_bytes());
     }
 }

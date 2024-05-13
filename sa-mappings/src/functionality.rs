@@ -6,7 +6,6 @@ use serde::Serialize;
 
 
 use crate::proteins::Protein;
-use crate::taxonomy::TaxonAggregator;
 
 /// A struct that represents the functional annotations once aggregated
 #[derive(Debug, Serialize)]

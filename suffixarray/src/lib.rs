@@ -10,7 +10,7 @@ use suffixarray_builder::{build_sa, SAConstructionAlgorithm};
 use suffixarray_builder::binary::{load_binary, write_binary};
 use tsv_utils::read_lines;
 
-use crate::peptide_search::search_all_peptides;
+use crate::peptide_search::{analyse_all_peptides, OutputData, search_all_peptides};
 use crate::sa_searcher::Searcher;
 use crate::suffix_to_protein_index::{
     DenseSuffixToProtein, SparseSuffixToProtein, SuffixToProteinIndex, SuffixToProteinMappingStyle,
@@ -25,11 +25,8 @@ pub mod util;
 /// Enum that represents the 5 kinds of search that we support
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
 pub enum SearchMode {
-    Match,
-    MinMaxBound,
-    AllOccurrences,
-    TaxonId,
-    Analyses,
+    Search,
+    Analysis,
 }
 
 #[derive(Parser, Debug)]
@@ -69,8 +66,8 @@ pub struct Arguments {
     equalize_i_and_l: bool,
     #[arg(long)]
     clean_taxa: bool,
-    #[arg(long)]
-    search_only: bool
+    #[arg(long, value_enum, default_value_t = SearchMode::Analysis)]
+    search_mode: SearchMode
 }
 
 pub fn run(mut args: Arguments) -> Result<(), Box<dyn Error>> {
@@ -154,15 +151,29 @@ fn execute_search(searcher: &Searcher, args: &Arguments) -> Result<(), Box<dyn E
             .build_global()?;
     }
 
-    let search_result = search_all_peptides(
-        searcher,
-        &all_peptides,
-        cutoff,
-        args.equalize_i_and_l,
-        args.clean_taxa,
-        args.search_only
-    );
-    println!("{}", serde_json::to_string(&search_result)?);
+    match args.search_mode {
+        SearchMode::Search => {
+            let search_result = search_all_peptides(
+                searcher,
+                &all_peptides,
+                cutoff,
+                args.equalize_i_and_l,
+                args.clean_taxa,
+            );
+            println!("{}", serde_json::to_string(&search_result)?);
+        }
+        SearchMode::Analysis => {
+            let search_result = analyse_all_peptides(
+                searcher,
+                &all_peptides,
+                cutoff,
+                args.equalize_i_and_l,
+                args.clean_taxa,
+            );
+            println!("{}", serde_json::to_string(&search_result)?);
+        }
+    }
+        
     let end_time = get_time_ms()?;
 
     // output to other channel to prevent integrating it into the actual output

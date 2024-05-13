@@ -466,6 +466,10 @@ impl Searcher {
         let res = self.function_aggregator.aggregate(proteins.to_vec());
         Some(res)
     }
+    
+    pub fn get_all_functional_annotations(&self, proteins: &[&Protein]) -> Vec<Vec<String>> {
+        self.function_aggregator.get_all_functional_annotations(proteins)
+    }
 
     /// Fetch the UniProt accession and taxa for all the proteins
     pub fn get_uniprot_and_taxa_ids(proteins: &[&Protein]) -> (Vec<String>, Vec<TaxonId>) {

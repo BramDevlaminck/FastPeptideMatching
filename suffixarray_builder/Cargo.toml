@@ -1,5 +1,5 @@
 [package]
-name = "suffixarray"
+name = "suffixarray_builder"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,10 +7,6 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4.8", features = ["derive"] }
-umgap = "1.1.0"
-rayon = "1.8.1"
-serde = { version = "1.0.197", features = ["derive"] }
-suffixarray_builder = { path = "../suffixarray_builder" }
+libsais64-rs = { path = "../libsais64-rs" }
+libdivsufsort-rs = "0.1.0"
 sa-mappings = { path = "../sa-mappings" }
-futures = "0.3.30"
-serde_json = "1.0.116"

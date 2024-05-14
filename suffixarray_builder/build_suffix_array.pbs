@@ -4,10 +4,9 @@
 ### This script is designed to run on the Ghent university HPC                                        ###
 ###                                                                                                   ###
 ### how to use:                                                                                       ###
-### 1) load the rust module Rust/1.70.0-GCCcore-12.3.0 with `module load Rust/1.75.0-GCCcore-12.3.0`  ###
-### 2) compile the code on the login node using `cargo build --release`                               ###
-### 3) navigate the to folder of the binary (in `target/release`)                                     ###
-### 4) submit the job to the queue with `qsub suffix_array.pbs`                                       ###
+### 1) Swap to the high-memory gallade cluster by executing `module swap cluster/gallade`             ###
+### 2) Navigate the to root of the project                                                            ###
+### 3) Submit the job to the queue with `qsub suffixarray/build_suffix_array.pbs`                     ###
 #########################################################################################################
 
 # go to cluster with high memory
@@ -15,8 +14,8 @@ module swap cluster/gallade
 
 # define requested memory, cpu resources and email notifications
 #PBS -m abe
-#PBS -l walltime=06:30:00
-#PBS -l mem=920gb
+#PBS -l walltime=10:00:00
+#PBS -l mem=750gb
 # ask for 1 node, 1 cpu (not more needed since we don't have parallelism)
 #PBS -l nodes=1:ppn=1
 #PBS -N suffix_array_construction_uniprot
@@ -25,16 +24,12 @@ module swap cluster/gallade
 #PBS -o stdout.$PBS_JOBID
 #PBS -e stderr.$PBS_JOBID
 
-#folder="swissprot_var1/"
-#prefix="$VSC_DATA/BenchmarkData/"
-# search_file="search_file_no_mch.tsv"
-
-folder=""
 prefix="$VSC_DATA_VO/bram/"
 
 # load Rust
 module load Rust/1.75.0-GCCcore-12.3.0
 module load Clang/16.0.6-GCCcore-12.3.0 # needed to build the bindings from Rust to C
+module load CMake/3.26.3-GCCcore-12.3.0
 
 # go to current working dir and execute
 cd $PBS_O_WORKDIR
@@ -43,5 +38,4 @@ cd $PBS_O_WORKDIR
 cargo build --release
 
 # execute
-./suffixarray -d "$prefix""$folder"uniprotKB_protein_database.tsv -t "$prefix"taxons.tsv --build-only --suffix-to-protein-mapping sparse -o "$prefix"uniprot_indexed
-# ./suffixarray -d "$prefix""$folder"protein_database.tsv -s "$prefix""$folder""$search_file" -t "$prefix"taxons.tsv -m all-occurrences
+./target/release/suffixarray_builder -d "$prefix"uniprot_protein_database_minimal.tsv -t "$prefix"taxons.tsv --sparseness-factor 3 --construction-algorithm lib-div-suf-sort -o "$prefix"uniprot_suffix_array_sparse3.bin

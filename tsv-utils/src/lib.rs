@@ -3,13 +3,9 @@ pub mod taxon_id_calculator;
 use std::error::Error;
 use std::fs::File;
 use std::io;
-use std::io::{BufRead, BufReader};
+use std::io::BufRead;
 use std::path::Path;
-use std::str::from_utf8;
-use bytelines::ByteLines;
 use umgap::taxon::TaxonId;
-use sa_mappings::proteins::TERMINATION_CHARACTER;
-use sa_mappings::taxonomy::TaxonAggregator;
 use crate::taxon_id_calculator::{TaxonIdVerifier};
 
 // END_CHARACTER should ALWAYS be lexicographically than SEPARATION_CHARACTER
@@ -81,40 +77,6 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
         input_string: input_string.into_bytes(),
         proteins
     })
-}
-
-/// Parse the given database tsv file into a String that has all the proteins concatenated as 1 large text
-pub fn get_text_from_database_file(database_file: &str, taxon_aggregator: &TaxonAggregator) -> Result<Vec<u8>, Box<dyn Error>> {
-    let mut input_string: String = String::new();
-
-    let file = File::open(database_file)?;
-    
-    // Read the lines as bytes, since the input string is not guaranteed to be utf8
-    // because of the encoded functional annotations
-    let mut lines = ByteLines::new(BufReader::new(file));
-
-    while let Some(Ok(line)) = lines.next() {
-        let mut fields = line.split(|b| *b == b'\t');
-
-        // only get the taxon id and sequence from each line, we don't need the other parts
-        fields.next();
-        let taxon_id = from_utf8(fields.next().unwrap())?.parse::<TaxonId>()?;
-        let sequence = from_utf8(fields.next().unwrap())?;
-        fields.next();
-
-        if !taxon_aggregator.taxon_exists(taxon_id) {
-            continue;
-        }
-
-        input_string.push_str(&sequence.to_uppercase());
-        input_string.push(SEPARATION_CHARACTER.into());
-    }
-
-    input_string.pop();
-    input_string.push(TERMINATION_CHARACTER.into());
-    
-    input_string.shrink_to_fit();
-    Ok(input_string.into_bytes())
 }
 
 #[derive(Debug)]

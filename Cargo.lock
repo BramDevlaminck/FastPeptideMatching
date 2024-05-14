@@ -1732,7 +1732,6 @@ dependencies = [
  "serde",
  "serde_json",
  "suffixarray_builder",
- "tsv-utils",
  "umgap",
 ]
 
@@ -1744,7 +1743,6 @@ dependencies = [
  "libdivsufsort-rs",
  "libsais64-rs",
  "sa-mappings",
- "tsv-utils",
 ]
 
 [[package]]

@@ -6,7 +6,6 @@ use serde::Serialize;
 
 
 use crate::proteins::Protein;
-use crate::taxonomy::TaxonAggregator;
 
 /// A struct that represents the functional annotations once aggregated
 #[derive(Debug, Serialize)]
@@ -46,7 +45,7 @@ impl FunctionAggregator {
                     Some('I') => proteins_with_ipr.insert(protein.uniprot_id.clone()),
                     _ => false
                 };
-                
+
                 data.entry(annotation.to_string()).and_modify(|c| *c += 1).or_insert(1);
             }
         }
@@ -60,5 +59,27 @@ impl FunctionAggregator {
         data.remove("");
 
         FunctionalAggregation { counts, data }
+    }
+
+
+    /// Aggregates the functional annotations of proteins
+    ///
+    /// # Arguments
+    /// * `proteins` - A vector of proteins
+    ///
+    /// # Returns
+    ///
+    /// Returns a list of lists with all the functional annotations per protein
+    pub fn get_all_functional_annotations(&self, proteins: &[&Protein]) -> Vec<Vec<String>> {
+        proteins
+            .iter()
+            .map(
+                |&prot| 
+                    prot.get_functional_annotations()
+                        .split(';')
+                        .map(|ann| ann.to_string())
+                        .collect()
+            )
+            .collect::<Vec<Vec<String>>>()
     }
 }

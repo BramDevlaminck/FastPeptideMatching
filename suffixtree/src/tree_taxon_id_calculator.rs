@@ -21,6 +21,8 @@ impl TreeTaxonIdCalculator {
     }
 
     /// Calculates the taxon ids by only using the leaves in the tree
+    #[allow(unused)]
+
     pub fn calculate_taxon_ids_leaf(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
         self.calculate_taxon_ids_leaf_recursive(tree, proteins, 0);
     }

@@ -8,7 +8,6 @@ members = [
     "libsais64-rs",
     "suffixarray_server",
     "suffixarray_builder",
-
     "fa-compression",
     "sa-mappings"
 ]

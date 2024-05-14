@@ -82,7 +82,7 @@ async fn root() -> &'static str {
 /// # Returns
 ///
 /// Returns the search and analysis results from the index as a JSON
-async fn analysis(
+async fn analyse(
     State(searcher): State<Arc<Searcher>>,
     data: Json<InputData>,
 ) -> Result<Json<OutputData<SearchResultWithAnalysis>>, StatusCode> {
@@ -167,8 +167,8 @@ async fn start_server(args: Arguments) -> Result<(), Box<dyn Error>> {
     let app = Router::new()
         // `GET /` goes to `root`
         .route("/", get(root))
-        // `POST /analysis` goes to `analysis` and set max payload size to 5 MB
-        .route("/analysis", post(analysis))
+        // `POST /analyse` goes to `analyse` and set max payload size to 5 MB
+        .route("/analyse", post(analyse))
         .layer(DefaultBodyLimit::max(5 * 10_usize.pow(6)))
         .with_state(searcher.clone())
         // `POST /search` goes to `search` and set max payload size to 5 MB

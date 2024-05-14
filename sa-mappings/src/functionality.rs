@@ -78,6 +78,7 @@ impl FunctionAggregator {
                     prot.get_functional_annotations()
                         .split(';')
                         .map(|ann| ann.to_string())
+                        .filter(|s| !s.is_empty())
                         .collect()
             )
             .collect::<Vec<Vec<String>>>()

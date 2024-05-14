@@ -5,7 +5,15 @@ use std::io::{Read, Write};
 
 const ONE_GIB: usize = 2usize.pow(30);
 
+/// Trait implemented by structs that are binary serializable
+/// In our case this is will be a [i64] since the suffix array is a Vec<i64>
 pub trait Serializable {
+
+    /// Serializes self into a vector of bytes
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of bytes
     fn serialize(&self) -> Vec<u8>;
 }
 
@@ -19,6 +27,14 @@ impl Serializable for [i64] {
     }
 }
 
+/// Deserializes a vector of bytes into the suffix array
+///
+/// # Arguments
+/// * `data` - The raw bytes needed to be serialized into a suffix array
+///
+/// # Returns
+///
+/// Returns the suffix array, a Vec<i64>
 fn deserialize_sa(data: &[u8]) -> Vec<i64> {
     let mut res = vec![];
     if data.len() % 8 != 0 {
@@ -30,18 +46,28 @@ fn deserialize_sa(data: &[u8]) -> Vec<i64> {
     res
 }
 
-// from: https://gist.github.com/taylorsmithgg/ba7b070c0964aa8b86d311ab6f8f5508
-// https://dev.to/oliverjumpertz/how-to-write-files-in-rust-m06?comments_sort=top
-pub fn write_binary(sample_rate: u8, suffix_array: &Vec<i64>, text: &Vec<u8>, name: &str) -> Result<(), std::io::Error> {
-    //  TODO: how to store the uniprot protein data? store in separate files, or just assume we re-read the complete tsv
-    //  we could also use the first x bytes to store the uniprot version that this SA was built for
+/// Writes the given suffix array with the `sparseness_factor` factor to the given file
+///
+/// # Arguments
+/// * `sparseness_factor` - The sparseness factor of the suffix array
+/// * `suffix_array` - The suffix array
+/// * `filename` - The name of the file we want to write the suffix array to
+///
+/// # Returns
+///
+/// Returns () if writing away the suffix array succeeded
+///
+/// # Errors
+///
+/// Returns an io::Error if writing away the suffix array failed
+pub fn write_suffix_array(sparseness_factor: u8, suffix_array: &[i64], filename: &str) -> Result<(), std::io::Error> {
     // create the file
     let mut f = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true) // if the file already exists, empty the file
-        .open(name.to_owned() + "_sa.bin")?;
-    f.write_all(&[sample_rate])?; // write the sample rate as the first byte
+        .open(filename)?;
+    f.write_all(&[sparseness_factor])?; // write the sample rate as the first byte
 
     // write 1 GiB at a time, to minimize extra used memory since we need to translate i64 to [u8; 8]
     let sa_len = suffix_array.len();
@@ -50,47 +76,27 @@ pub fn write_binary(sample_rate: u8, suffix_array: &Vec<i64>, text: &Vec<u8>, na
         f.write_all(&suffix_array[start_index..end_index].serialize())?;
     }
 
-
-    let mut f = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(name.to_owned() + "_text.bin")?;
-
-    let text_len = text.len();
-    for start_index in (0..text_len).step_by(ONE_GIB) {
-        let end_index = min(start_index + ONE_GIB, text_len);
-        f.write_all(&text[start_index..end_index])?;
-    }
-
     Ok(())
 }
 
-pub fn load_binary(name: &str) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
-    // read the SA and deserialize it into a vec of i64
-    let sa_file = File::open(name)?;
-    // let reader = BufReader::new(sa_file);
-    let (sample_rate, sa) = read_sa_file(&sa_file)?;
+/// Loads the suffix array from the file with the given `filename`
+///
+/// # Arguments
+/// * `filename` - The filename of the file where the suffix array is stored
+///
+/// # Returns
+///
+/// Returns the sample rate of the suffix array, together with the suffix array
+///
+/// # Errors
+///
+/// Returns any error from opening the file or reading the file
+pub fn load_suffix_array(filename: &str) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
+    let mut file = &File::open(filename)?;
+    let mut sparseness_factor_buffer = [0_u8; 1];
+    file.read_exact(&mut sparseness_factor_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
+    let sparseness_factor = sparseness_factor_buffer[0];
 
-    // // read the text file
-    // let mut text_file = OpenOptions::new()
-    //     .read(true)
-    //     .open(name.to_owned() + "_text.bin")?;
-    //
-    // let num_bytes_text = text_file.metadata()?.len() as usize;
-    // let mut text = vec![0; num_bytes_text];
-    //
-    // text_file.read_to_end(&mut text)?;
-
-    Ok((sample_rate, sa))
-}
-
-fn read_sa_file(mut file: &File) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
-    let mut sample_rate_buffer = [0_u8; 1]; // TODO: if sample rate should be bigger than a u8, change this buffer size!
-    file.read_exact(&mut sample_rate_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
-    let sample_rate = sample_rate_buffer[0];
-
-    // this buffer is 1GiB big
     let mut sa = vec![];
     loop {
         let mut buffer = vec![];
@@ -102,7 +108,7 @@ fn read_sa_file(mut file: &File) -> Result<(u8, Vec<i64>), Box<dyn Error>> {
         sa.extend_from_slice(&deserialize_sa(&buffer[..count]));
     }
 
-    Ok((sample_rate, sa))
+    Ok((sparseness_factor, sa))
 }
 
 

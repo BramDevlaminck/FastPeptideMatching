@@ -1,6 +1,6 @@
 use umgap::taxon::TaxonId;
 
-use tsv_utils::taxon_id_calculator::{TaxonIdCalculator, TaxonIdVerifier};
+use tsv_utils::taxon_id_calculator::{AggregationMethod, TaxonIdCalculator, TaxonIdVerifier};
 
 use crate::Protein;
 use crate::tree::{NodeIndex, Nullable, Tree};
@@ -10,14 +10,19 @@ pub struct TreeTaxonIdCalculator {
 }
 
 impl TreeTaxonIdCalculator {
-
+    
+    /// Always aggregate using LCA and not LCA*
+    /// since we precalculate the aggregate efficiently in the tree
+    /// and LCA* gives incorrect results the way we precalculate the taxa
     pub fn new(ncbi_taxonomy_fasta_file: &str) -> Self {
         Self {
-            taxon_id_calculator: TaxonIdCalculator::new(ncbi_taxonomy_fasta_file)
+            taxon_id_calculator: TaxonIdCalculator::new(ncbi_taxonomy_fasta_file, AggregationMethod::Lca)
         }
     }
 
     /// Calculates the taxon ids by only using the leaves in the tree
+    #[allow(unused)]
+
     pub fn calculate_taxon_ids_leaf(&self, tree: &mut Tree, proteins: &Vec<Protein>) {
         self.calculate_taxon_ids_leaf_recursive(tree, proteins, 0);
     }
@@ -167,7 +172,7 @@ mod test {
         //      4     5
         //     (10)  (9)
 
-        let test_taxonomy_file = "../small_taxonomy.tsv";
+        let test_taxonomy_file = "../testfiles/small_taxonomy.tsv";
         let mut tree = Tree {
             arena: vec![
                 Node {
@@ -244,18 +249,22 @@ mod test {
 
         let proteins = vec![
             Protein {
+                uniprot_id: "Q0".to_string(),
                 sequence: (0, 3),
                 id: 10,
             },
             Protein {
+                uniprot_id: "Q1".to_string(),
                 sequence: (4, 7),
                 id: 9,
             },
             Protein {
+                uniprot_id: "Q2".to_string(),
                 sequence: (8, 11),
                 id: 20,
             },
             Protein {
+                uniprot_id: "Q3".to_string(),
                 sequence: (12, 13),
                 id: 2,
             },

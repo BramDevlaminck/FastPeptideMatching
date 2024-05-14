@@ -35,7 +35,7 @@ impl Proteins {
     }
 }
 
-
+#[derive(Debug)]
 /// The useful information about a protein for our use case
 pub struct Protein {
     pub uniprot_id: String,
@@ -77,31 +77,6 @@ pub fn get_proteins_from_database_file(database_file: &str, taxon_id_calculator:
         input_string: input_string.into_bytes(),
         proteins
     })
-}
-
-/// Parse the given database tsv file into a String that has all the proteins concatenated as 1 large text
-pub fn get_text_from_database_file(database_file: &str, taxon_id_calculator: &dyn TaxonIdVerifier) -> Result<String, Box<dyn Error>> {
-    let mut input_string: String = String::new();
-    let mut begin_index: usize = 0;
-    let lines = read_lines(database_file)?;
-    for line in lines.into_iter().map_while(Result::ok) {
-        let parts: Vec<String> = line.split('\t').map(str::to_string).collect();
-        let [_uniprot_id, protein_id_str, protein_sequence]: [String; 3] = parts.try_into().map_err(|e| DatabaseFormatError{ error: e})?;
-        let protein_id_as_taxon_id = protein_id_str.parse::<TaxonId>()?;
-        // if the taxon ID is not a valid ID in our NCBI taxonomy, skip this protein
-        if !taxon_id_calculator.taxon_id_exists(protein_id_as_taxon_id) {
-            // eprintln!("Skipped protein with taxon id {}!", protein_id_as_taxon_id);
-            continue;
-        }
-
-        if begin_index != 0 {
-            input_string.push(SEPARATION_CHARACTER as char);
-        }
-        input_string.push_str(&protein_sequence.to_uppercase());
-        begin_index += protein_sequence.len() + 1;
-    }
-    input_string.push(END_CHARACTER as char);
-    Ok(input_string)
 }
 
 #[derive(Debug)]

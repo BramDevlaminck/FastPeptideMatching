@@ -7,8 +7,10 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4.8", features = ["derive"] }
-tsv-utils = { path = "../tsv-utils" }
 umgap = "1.1.0"
 rayon = "1.8.1"
 serde = { version = "1.0.197", features = ["derive"] }
 suffixarray_builder = { path = "../suffixarray_builder" }
+sa-mappings = { path = "../sa-mappings" }
+futures = "0.3.30"
+serde_json = "1.0.116"

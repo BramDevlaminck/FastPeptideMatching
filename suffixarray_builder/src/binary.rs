@@ -46,7 +46,6 @@ fn deserialize_sa(data: &[u8]) -> Vec<i64> {
     res
 }
 
-
 /// Writes the given suffix array with the `sparseness_factor` factor to the given file
 ///
 /// # Arguments
@@ -57,9 +56,9 @@ fn deserialize_sa(data: &[u8]) -> Vec<i64> {
 /// # Returns
 ///
 /// Returns () if writing away the suffix array succeeded
-/// 
+///
 /// # Errors
-/// 
+///
 /// Returns an io::Error if writing away the suffix array failed
 pub fn write_suffix_array(sparseness_factor: u8, suffix_array: &[i64], filename: &str) -> Result<(), std::io::Error> {
     // create the file
@@ -80,7 +79,6 @@ pub fn write_suffix_array(sparseness_factor: u8, suffix_array: &[i64], filename:
     Ok(())
 }
 
-
 /// Loads the suffix array from the file with the given `filename`
 ///
 /// # Arguments
@@ -99,12 +97,11 @@ pub fn load_suffix_array(filename: &str) -> Result<(u8, Vec<i64>), Box<dyn Error
     file.read_exact(&mut sparseness_factor_buffer).map_err(|_| "Could not read the sample rate from the binary file")?;
     let sparseness_factor = sparseness_factor_buffer[0];
 
-    // this buffer is 1GiB big
     let mut sa = vec![];
     loop {
         let mut buffer = vec![];
         // use take in combination with read_to_end to ensure that the buffer will be completely filled (except when the file is smaller than the buffer)
-        let count = file.take(2 * ONE_GIB as u64).read_to_end(&mut buffer)?;
+        let count = file.take(ONE_GIB as u64).read_to_end(&mut buffer)?;
         if count == 0 {
             break;
         }

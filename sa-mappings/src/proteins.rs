@@ -40,7 +40,7 @@ pub struct Proteins {
     pub input_string: Vec<u8>,
 
     /// The proteins in the input string
-    proteins: Vec<Protein>
+    pub proteins: Vec<Protein>
 }
 
 impl Protein {
